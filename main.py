@@ -19,4 +19,4 @@ res = llm.create_chat_completion(
         max_tokens=120
         )
 print("\nResponse:\n")
-print(res["choices"][0]["message"]["content"])
+print(res["choices"][0]["message"]["content"].strip())
