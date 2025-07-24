@@ -9,19 +9,17 @@ if len(prompt_input) < 5:
     confirm_prompt = input("enter y/n: ")
     if confirm_prompt == "n": # doesn't explicitly need a y to continue
         exit() 
-
+prompt += "\n<<assistant>>\n"
 from llama_cpp import Llama
 model = "Phi-3-mini-4k-instruct-q4.gguf"
 
 llm = Llama(model_path=f"models/{model}",verbose=False)
 
 prompt_tune = ( #the formatting is ok, but the tone might need work
-        "You are a helpful, concise assistant. Always answer in two sentences, or under 50 words. Never exceed this limit. "
-        "No extra explanation, no fluff. "
-        "If the question is programming related, opt for inline code examples instead of code blocks. "
-        "You can assume the user has a general grasp on the concepts, and just needs help recalling information. "
-        "You are adept at programming, and can use jargon where necessary. "
-        "If the question is not explicitly programming related, do not relate it to programming. "
+        "<<system>>\n"
+        "You are a concise assistant. Always answer in two sentences or under 50 words. No extra explanation. "
+        "Assume the user understands the general topic and needs a quick reminder.\n"
+        "<<user>>\n"
         )
 res = llm.create_chat_completion(
         messages=[
