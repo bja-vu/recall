@@ -9,18 +9,15 @@ if len(prompt_input) < 5:
     confirm_prompt = input("enter y/n: ")
     if confirm_prompt == "n": # doesn't explicitly need a y to continue
         exit() 
-#prompt += "\n<<assistant>>\n"
 from llama_cpp import Llama
 model = "capybarahermes-2.5-mistral-7b.Q4_K_M.gguf"
 
 llm = Llama(model_path=f"models/{model}",verbose=False)
 
-prompt_tune = ( #the formatting is ok, but the tone might need work
-        #"<<system>>\n"
+prompt_tune = (
         "Answer ONLY with the direct response. Do NOT add any notes, or explanations. "
         "Always answer in two sentences or under 50 words. No extra explanation. No notes. "
         "Assume the user understands the general topic and needs a quick reminder. Freely use slang and jargon where necessary.\n"
-        #"<<user>>\n"
         )
 res = llm.create_chat_completion(
         messages=[
@@ -31,5 +28,4 @@ res = llm.create_chat_completion(
         temperature=0.2,
         top_p=0.9
         )
-print("\nResponse:\n")
 print(res["choices"][0]["message"]["content"].strip())
