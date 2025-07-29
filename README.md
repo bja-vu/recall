@@ -15,3 +15,5 @@ To use GPU, you need CUDA toolkit installed (both on windows and in WSL). Then, 
 https://github.com/ggml-org/llama.cpp/blob/master/docs/build.md#cuda
 
 models typically display the max number of layers.
+## TODO
+- [ ] formatting parser converting markdown into rich markup
