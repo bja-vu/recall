@@ -1,6 +1,7 @@
 import sys
-from llama_cpp import Llama
 from rich import print
+import subprocess
+import json
 
 prompt_input = sys.argv[1:]
 if not prompt_input:
@@ -13,9 +14,7 @@ if len(prompt_input) < 5:
     if confirm_prompt == "n": # doesn't explicitly need a y to continue
         exit() 
 
-model = "capybarahermes-2.5-mistral-7b.Q4_K_M.gguf"
-
-llm = Llama(model_path=f"models/{model}",verbose=False)
+model = "capybarahermes-2.5-mistral-7b.Q4_K_M"
 
 prompt_tune = (
     "Q: What is a pointer?\n"
@@ -30,13 +29,30 @@ prompt_tune = (
         "Assume the user understands the general topic and needs a quick reminder. Freely use slang and jargon where necessary. ALWAYS answer the question.\n"
         "If the question refers to something that does not exist or is incorrect, say so. Do not answer untruthfully.\n"
         )
-res = llm.create_chat_completion(
-        messages=[
-            {"role": "user", "content": prompt_tune},
-            {"role": "user", "content": prompt}
-            ],
-        max_tokens=300,
-        temperature=0.2,
-        top_p=0.9
+
+messages=[
+    {"role": "user", "content": prompt_tune},
+    {"role": "user", "content": prompt}
+]
+
+d_args = {
+        "model": model,
+        "messages": messages,
+        "max_tokens": 300,
+        "temperature": 0.2,
+        "top_p": 0.9
+}
+
+res = subprocess.run(
+        [
+            "curl",
+            "http://127.0.0.1:8080/v1/chat/completions",
+            "-H","Content-Type: application/json",
+            "-d", json.dumps(d_args)
+        ],
+        capture_output=True
         )
-print(res["choices"][0]["message"]["content"].strip())
+
+out = res.stdout.decode()
+answer=json.loads(out)
+print(answer["choices"][0]["message"]["content"].strip())
