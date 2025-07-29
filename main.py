@@ -1,5 +1,4 @@
 import sys
-from llama_cpp import Llama
 from rich import print
 import subprocess
 import json
