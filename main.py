@@ -1,5 +1,7 @@
 import sys
 from rich import print
+from rich.markdown import Markdown
+from rich.console import Console
 import subprocess
 import json
 
@@ -17,17 +19,11 @@ if len(prompt_input) < 5:
 model = "capybarahermes-2.5-mistral-7b.Q4_K_M"
 
 prompt_tune = (
-    "Q: What is a pointer?\n"
-    "A: [bold]Pointer[/bold]: [italic]A variable that holds a memory address[/italic].\n\n"
-    "Q: How to print in Python?\n"
-    "A: [red]print(\"Hello\")[/red] – [italic]prints text to the console[/italic].\n\n"
-    "Q: What is a list?\n"
-    "A: [bold]List[/bold]: [green]An ordered, mutable collection[/green].\n\n"
-        "Format your response using markup: use [bold]text[/bold] for bold, [italic]text[/italic] for italics, [colorname]text[/colorname] (e.g., [red]text[/red]) for coloured text. Mimic the markup above. Ensure all markup is correct.\n"
-        "Answer ONLY with the direct response. Do NOT add any notes, or explanations."
         "Always answer in two sentences or under 50 words. No extra explanation. No notes.\n"
         "Assume the user understands the general topic and needs a quick reminder. Freely use slang and jargon where necessary. ALWAYS answer the question.\n"
         "If the question refers to something that does not exist or is incorrect, say so. Do not answer untruthfully.\n"
+        "If the question is programming related, be pragmatic with your answers. Opt for code instead of descriptions.\n"
+        "Reply using markdown syntax only. Use one asterisk (*text*) for italics, two asterisks (**text**) for bold, and backticks (`text`) for inline code.\n"
         )
 
 messages=[
@@ -55,4 +51,7 @@ res = subprocess.run(
 
 out = res.stdout.decode()
 answer=json.loads(out)
-print(answer["choices"][0]["message"]["content"].strip())
+md = Markdown(answer["choices"][0]["message"]["content"].strip())
+console = Console()
+console.print(md)
+#print(answer["choices"][0]["message"]["content"].strip())
