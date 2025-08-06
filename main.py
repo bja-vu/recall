@@ -4,8 +4,33 @@ from rich.markdown import Markdown
 from rich.console import Console
 import subprocess
 import json
+import sqlite3
 
-prompt_input = sys.argv[1:]
+# initialise database
+con = sqlite3.connect('data/memory.db')
+cur = con.cursor()
+
+cur.execute('''
+CREATE TABLE IF NOT EXISTS prompts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            prompt TEXT,
+            response TEXT,
+            type TEXT
+            )
+''')
+cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='prompts'")
+if cur.fetchone() is not None:
+    print("DB initialized")
+else:
+    print("DB not initialized")
+
+# handle user input
+if sys.argv[1] == 'r': #TODO: requires proper user input
+    prompt_type = "recall"
+elif sys.argv[1] == 'c':
+    prompt_type = "chat"
+
+prompt_input = sys.argv[2:]
 if not prompt_input:
     print("error: no prompt entered.")
     exit()
@@ -16,6 +41,7 @@ if len(prompt_input) < 5:
     if confirm_prompt == "n": # doesn't explicitly need a y to continue
         exit() 
 
+# llm configuration
 model = "capybarahermes-2.5-mistral-7b.Q4_K_M"
 
 prompt_tune = (
@@ -39,6 +65,7 @@ d_args = {
         "top_p": 0.9
 }
 
+# make curl call to server
 res = subprocess.run(
         [
             "curl",
@@ -49,9 +76,18 @@ res = subprocess.run(
         capture_output=True
         )
 
+# process output
 out = res.stdout.decode()
 answer=json.loads(out)
-md = Markdown(answer["choices"][0]["message"]["content"].strip())
+raw = answer["choices"][0]["message"]["content"].strip()
+md = Markdown(raw)
 console = Console()
 console.print(md)
 #print(answer["choices"][0]["message"]["content"].strip())
+
+# save to database
+cur.execute('''
+          INSERT INTO prompts (prompt,response,type) VALUES (?, ?, ?)''', (prompt, raw, prompt_type))
+print(f"added {prompt} - {raw} - {prompt_type}")
+con.commit()
+con.close()
