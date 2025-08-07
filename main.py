@@ -6,88 +6,112 @@ import subprocess
 import json
 import sqlite3
 
-# initialise database
-con = sqlite3.connect('data/memory.db')
-cur = con.cursor()
-
-cur.execute('''
-CREATE TABLE IF NOT EXISTS prompts (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            prompt TEXT,
-            response TEXT,
-            type TEXT
-            )
-''')
-cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='prompts'")
-if cur.fetchone() is not None:
-    print("DB initialized")
-else:
-    print("DB not initialized")
-
-# handle user input
-if sys.argv[1] == 'r': #TODO: requires proper user input
-    prompt_type = "recall"
-elif sys.argv[1] == 'c':
-    prompt_type = "chat"
-
-prompt_input = sys.argv[2:]
-if not prompt_input:
-    print("error: no prompt entered.")
-    exit()
-prompt = " ".join(prompt_input)
-if len(prompt_input) < 5:
-    print(f"was your prompt correct? - ({prompt})")
-    confirm_prompt = input("enter y/n: ")
-    if confirm_prompt == "n": # doesn't explicitly need a y to continue
-        exit() 
-
-# llm configuration
+# globals
 model = "capybarahermes-2.5-mistral-7b.Q4_K_M"
 
 prompt_tune = (
-        "Always answer in two sentences or under 50 words. No extra explanation. No notes.\n"
-        "Assume the user understands the general topic and needs a quick reminder. Freely use slang and jargon where necessary. ALWAYS answer the question.\n"
-        "If the question refers to something that does not exist or is incorrect, say so. Do not answer untruthfully.\n"
-        "If the question is programming related, be pragmatic with your answers. Opt for code instead of descriptions.\n"
-        "Reply using markdown syntax only. Use one asterisk (*text*) for italics, two asterisks (**text**) for bold, and backticks (`text`) for inline code.\n"
-        )
+       "Always answer in two sentences or under 50 words. No extra explanation. No notes.\n"
+    "Assume the user understands the general topic and needs a quick reminder. Freely use slang and jargon where necessary. ALWAYS answer the question.\n"
+    "If the question refers to something that does not exist or is incorrect, say so. Do not answer untruthfully.\n"
+    "If the question is programming related, be pragmatic with your answers. Opt for code instead of descriptions.\n"
+    "Reply using markdown syntax only. Use one asterisk (*text*) for italics, two asterisks (**text**) for bold, and backticks (`text`) for inline code.\n"
+    "Infer missing context from previous messages. Never ask for clarification.\n"
+)
+def init_db():
+    # initialises sqlite3 db, returns tuple
+    con = sqlite3.connect("data/memory.db")
+    cur = con.cursor()
 
-messages=[
-    {"role": "user", "content": prompt_tune},
-    {"role": "user", "content": prompt}
-]
+    cur.execute('''
+    CREATE TABLE IF NOT EXISTS prompts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                prompt TEXT,
+                response TEXT,
+                type TEXT
+                )
+    ''')
+    return con,cur
 
-d_args = {
+def parse_input(args) -> tuple[str, str]:
+    if len(args) < 3:
+        raise ValueError("No prompt entered.\n")
+    if args[1] == 'r':
+        prompt_type = "recall"
+    elif args[1] == 'c':
+        prompt_type = "chat"
+    else:
+        raise ValueError("Argument must contain either an 'r' or a 'c' as its first entry, signifying recall or chat.")
+
+    prompt_input = args[2:]
+    prompt = " ".join(prompt_input)
+    if len(prompt_input) < 3:
+        print(f"was your prompt correct? - ({prompt})")
+        confirm_prompt = input("enter y/n:")
+        if confirm_prompt == "n": # doesn't explicitly need a y to continue
+            exit()
+    return prompt, prompt_type
+
+def chat_context(cur): # NOTE chat history could get too long for model to process
+    cur.execute("SELECT id FROM prompts WHERE type='recall' ORDER BY id DESC LIMIT 1")
+    last_recall = cur.fetchone()
+    if last_recall: # TODO oneline this?
+        last_id = last_recall[0]
+    else:
+        last_id = 0
+
+    cur.execute("SELECT prompt, response FROM prompts WHERE id > ? AND type = 'chat' ORDER BY id", (last_id,)) #TODO why does this need to be tuple
+    context = cur.fetchall()
+    
+    history=""
+    #build a list of messages
+    for prompt,response in context:
+        history += (f"Q:{prompt}\nA:{response}\n")
+    return history
+
+def curl_llm(messages):
+    d_args = {
         "model": model,
         "messages": messages,
         "max_tokens": 300,
         "temperature": 0.2,
         "top_p": 0.9
-}
+        }
+    res = subprocess.run(
+            [
+                "curl",
+                "http://127.0.0.1:8080/v1/chat/completions",
+                "-H","Content-Type: application/json",
+                "-d", json.dumps(d_args)
+                ],
+                capture_output=True
+                )
+    # process output, return raw text
+    out = res.stdout.decode()
+    answer = json.loads(out)
+    return answer["choices"][0]["message"]["content"].strip()
+    
+def save_to_db(cur, prompt, raw, prompt_type):
+    cur.execute("INSERT INTO prompts (prompt, response, type) VALUES (?, ?, ?)",
+                (prompt, raw, prompt_type))
 
-# make curl call to server
-res = subprocess.run(
-        [
-            "curl",
-            "http://127.0.0.1:8080/v1/chat/completions",
-            "-H","Content-Type: application/json",
-            "-d", json.dumps(d_args)
-        ],
-        capture_output=True
-        )
+def main():
+    con, cur = init_db()
+    prompt, prompt_type = parse_input(sys.argv)
+    history = chat_context(cur) if prompt_type == "chat" else ""
 
-# process output
-out = res.stdout.decode()
-answer=json.loads(out)
-raw = answer["choices"][0]["message"]["content"].strip()
-md = Markdown(raw)
-console = Console()
-console.print(md)
-#print(answer["choices"][0]["message"]["content"].strip())
+    messages = [{"role": "user", "content": prompt_tune}]
+    if history:
+        messages.append({"role": "user", "content": history})
+    messages.append({"role": "user", "content": prompt})
 
-# save to database
-cur.execute('''
-          INSERT INTO prompts (prompt,response,type) VALUES (?, ?, ?)''', (prompt, raw, prompt_type))
-print(f"added {prompt} - {raw} - {prompt_type}")
-con.commit()
-con.close()
+    raw = curl_llm(messages)
+    console = Console()
+    console.print(Markdown(raw))
+    
+    save_to_db(cur, prompt, raw, prompt_type)
+    print(f"added {prompt} - {raw} - {prompt_type}")
+    con.commit()
+    con.close()
+
+if __name__ == "__main__":
+    main()
