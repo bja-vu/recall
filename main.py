@@ -51,22 +51,31 @@ def parse_input(args) -> tuple[str, str]:
             exit()
     return prompt, prompt_type
 
-def chat_context(cur): # NOTE chat history could get too long for model to process
-    cur.execute("SELECT id FROM prompts WHERE type='recall' ORDER BY id DESC LIMIT 1")
-    last_recall = cur.fetchone()
-    if last_recall: # TODO oneline this?
-        last_id = last_recall[0]
-    else:
-        last_id = 0
+def chat_context(cur): # NOTE chat history could overload the models token limit
+    last_recall = cur.execute(
+        "SELECT prompt, response FROM prompts WHERE type='recall' ORDER BY id DESC LIMIT 1"
+    ).fetchone()
 
-    cur.execute("SELECT prompt, response FROM prompts WHERE id > ? AND type = 'chat' ORDER BY id", (last_id,)) #TODO why does this need to be tuple
-    context = cur.fetchall()
-    
-    history=""
-    #build a list of messages
-    for prompt,response in context:
-        history += (f"Q:{prompt}\nA:{response}\n")
+    history = []
+    if last_recall:
+        history.append({"role": "assistant", "content": last_recall[1]})
+
+    last_recall_id = 0
+    if last_recall:
+        last_recall_id = cur.execute(
+            "SELECT id FROM prompts WHERE type='recall' ORDER BY id DESC LIMIT 1"
+        ).fetchone()[0]
+
+    cur.execute(
+        "SELECT prompt, response FROM prompts WHERE id > ? AND type='chat' ORDER BY id",
+        (last_recall_id,),
+    )
+    for prompt, response in cur.fetchall():
+        history.append({"role": "user", "content": prompt})
+        history.append({"role": "assistant", "content": response})
+
     return history
+
 
 def curl_llm(messages):
     d_args = {
@@ -97,11 +106,9 @@ def save_to_db(cur, prompt, raw, prompt_type):
 def main():
     con, cur = init_db()
     prompt, prompt_type = parse_input(sys.argv)
-    history = chat_context(cur) if prompt_type == "chat" else ""
+    history = chat_context(cur) if prompt_type == "chat" else []
 
-    messages = [{"role": "user", "content": prompt_tune}]
-    if history:
-        messages.append({"role": "user", "content": history})
+    messages = [{"role": "user", "content": prompt_tune}] + history
     messages.append({"role": "user", "content": prompt})
 
     raw = curl_llm(messages)
@@ -109,7 +116,7 @@ def main():
     console.print(Markdown(raw))
     
     save_to_db(cur, prompt, raw, prompt_type)
-    print(f"added {prompt} - {raw} - {prompt_type}")
+    #print(f"added {prompt} - {raw} - {prompt_type}")
     con.commit()
     con.close()
 
