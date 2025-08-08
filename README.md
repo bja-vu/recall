@@ -25,5 +25,5 @@ models typically display the max number of layers.
 > metric of similarity is inconsistent, but it's simple to implement
 > I could also strip "filler" words to extract important ones (e.g. how do i improve performance of my local llm >> "improve", "performance" "local", "llm") and compare those, but it'd still miss some context
 
-- [ ] conversation mode, toggleable by user after response is sent (might be annoying, instead could be a different command that uses the prior response which would be cached somewhere and overridden on the next NON-CONVO response)
+- [x] conversation mode, toggleable by user after response is sent (might be annoying, instead could be a different command that uses the prior response which would be cached somewhere and overridden on the next NON-CONVO response)
 - [ ] fuzzy search like "fetch hash" returns all prompt:response combos with hash in them (up to a limit)
