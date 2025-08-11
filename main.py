@@ -17,6 +17,7 @@ prompt_tune = (
     "Reply using markdown syntax only. Use one asterisk (*text*) for italics, two asterisks (**text**) for bold, and backticks (`text`) for inline code.\n"
     "Infer missing context from previous messages. Never ask for clarification.\n"
 )
+
 def init_db():
     # initialises sqlite3 db, returns tuple
     con = sqlite3.connect("data/memory.db")
@@ -76,6 +77,11 @@ def chat_context(cur): # NOTE chat history could overload the models token limit
 
     return history
 
+def chat_history(cur, n):
+    if n < 1:
+        return []
+    cur.execute('SELECT prompt, response FROM prompts ORDER BY id DESC LIMIT ?', (n,))
+    return cur.fetchall()
 
 def curl_llm(messages):
     d_args = {
@@ -104,7 +110,14 @@ def save_to_db(cur, prompt, raw, prompt_type):
                 (prompt, raw, prompt_type))
 
 def main():
+    console = Console()
     con, cur = init_db()
+    if len(sys.argv) == 1: # no args
+        rows = chat_history(cur, 10)
+        for prompt, response in rows:
+            console.print(f"Q: ", Markdown(prompt), "\nA: ", Markdown(response))
+            console.rule()
+        return
     prompt, prompt_type = parse_input(sys.argv)
     history = chat_context(cur) if prompt_type == "chat" else []
 
@@ -112,7 +125,6 @@ def main():
     messages.append({"role": "user", "content": prompt})
 
     raw = curl_llm(messages)
-    console = Console()
     console.print(Markdown(raw))
     
     save_to_db(cur, prompt, raw, prompt_type)
