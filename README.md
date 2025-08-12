@@ -17,13 +17,11 @@ https://github.com/ggml-org/llama.cpp/blob/master/docs/build.md#cuda
 models typically display the max number of layers.
 ## TODO
 - [x] formatting parser converting markdown into rich markup
-- [ ] save prompts and responses, print last 5-10 if just main.py is run with no args
+- [x] Database integration and history printing
+> Note: the history currently includes chat messages
 - [ ] semi-automatic performance improvement
-> store all prompts and responses
-> when a prompt shares >*n*% of words with an existing prompt, ask user if previous response is alright, if so, add prompt to list of associated prompts and avoid re-creating a response
-> if not, create a response
-> metric of similarity is inconsistent, but it's simple to implement
-> I could also strip "filler" words to extract important ones (e.g. how do i improve performance of my local llm >> "improve", "performance" "local", "llm") and compare those, but it'd still miss some context
-
-- [x] conversation mode, toggleable by user after response is sent (might be annoying, instead could be a different command that uses the prior response which would be cached somewhere and overridden on the next NON-CONVO response)
-- [ ] fuzzy search like "fetch hash" returns all prompt:response combos with hash in them (up to a limit)
+> Basic Memoisation using prompt comparison (Full-Auto)
+> Memoisation using prompt "*keyword*" comparison and User Confirmation (Semi-Auto)
+> Cosine Similarity using ML techniques and converting prompts to vectors (Full-Auto)
+- [x] Conversation mode with basic context
+- [ ] Fuzzy search using `history` with an argument, returns *n* prompt/response pairs with the arg featured in the prompt or response.
