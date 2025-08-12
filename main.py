@@ -33,24 +33,37 @@ def init_db():
     ''')
     return con,cur
 
-def parse_input(args) -> tuple[str, str]:
-    if len(args) < 3:
-        raise ValueError("No prompt entered.\n")
-    if args[1] == 'r':
-        prompt_type = "recall"
-    elif args[1] == 'c':
-        prompt_type = "chat"
-    else:
-        raise ValueError("Argument must contain either an 'r' or a 'c' as its first entry, signifying recall or chat.")
+def parse_input(args) -> tuple[str | None, str]:
+    if len(args) < 2:
+        raise ValueError("Not enough args.\n")
+    
+    mode = args[1] # recall, chat, history
+    if mode == 'h': # history, optional search term
+        if len(args) >  2:
+            search = " ".join(args[2:])
+        else:
+            search = None
+        return search, "history"
 
+    if len(args) < 3:
+        raise ValueError("No prompt was entered.\n")
+    
     prompt_input = args[2:]
     prompt = " ".join(prompt_input)
     if len(prompt_input) < 3:
-        print(f"was your prompt correct? - ({prompt})")
-        confirm_prompt = input("enter y/n:")
-        if confirm_prompt == "n": # doesn't explicitly need a y to continue
-            exit()
-    return prompt, prompt_type
+        print("was your prompt input correct?")
+        confirm = input("enter y/n:")
+        while True:
+            confirm = input("enter y/n:")
+            if confirm.lower().strip() == 'y':
+                break
+            if confirm.lower().strip() == 'n':
+                exit()
+
+    if mode == 'r':
+        return prompt, "recall"
+    elif mode == 'c':
+        return prompt, "chat"
 
 def chat_context(cur): # NOTE chat history could overload the models token limit
     last_recall = cur.execute(
@@ -77,10 +90,11 @@ def chat_context(cur): # NOTE chat history could overload the models token limit
 
     return history
 
-def chat_history(cur, n):
-    if n < 1:
-        return []
-    cur.execute('SELECT prompt, response FROM prompts ORDER BY id DESC LIMIT ?', (n,))
+def chat_history(cur, term=None):
+    if term: # with term searches, you want many more
+        cur.execute('SELECT prompt, response FROM prompts WHERE prompt LIKE ? OR response LIKE ? ORDER BY id',(f"%{term}%", f"%{term}%"))
+    else: # with no search, just display last 10
+        cur.execute('SELECT prompt, response FROM prompts ORDER BY id DESC LIMIT 10' )
     return cur.fetchall()
 
 def curl_llm(messages):
@@ -106,19 +120,22 @@ def curl_llm(messages):
     return answer["choices"][0]["message"]["content"].strip()
     
 def save_to_db(cur, prompt, raw, prompt_type):
+    if not prompt or not raw:
+        raise ValueError("Prompt or response is empty, exiting...")
     cur.execute("INSERT INTO prompts (prompt, response, type) VALUES (?, ?, ?)",
                 (prompt, raw, prompt_type))
 
 def main():
     console = Console()
     con, cur = init_db()
-    if len(sys.argv) == 1: # no args
-        rows = chat_history(cur, 10)
-        for prompt, response in rows:
-            console.print(f"Q: ", Markdown(prompt), "\nA: ", Markdown(response))
+
+    prompt, prompt_type = parse_input(sys.argv)
+    if prompt_type == "history":
+        rows =chat_history(cur,prompt)
+        for p, r in rows:
+            console.print(f"Q: ", Markdown(p), "\nA: ", Markdown(r))
             console.rule()
         return
-    prompt, prompt_type = parse_input(sys.argv)
     history = chat_context(cur) if prompt_type == "chat" else []
 
     messages = [{"role": "user", "content": prompt_tune}] + history
@@ -128,7 +145,6 @@ def main():
     console.print(Markdown(raw))
     
     save_to_db(cur, prompt, raw, prompt_type)
-    #print(f"added {prompt} - {raw} - {prompt_type}")
     con.commit()
     con.close()
 
