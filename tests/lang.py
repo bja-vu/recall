@@ -1,48 +1,61 @@
-from sentence_transformers import SentenceTransformer
-import torch
+import unittest
 
-def which_lang(prompt): # TODO a better solution could require word like "in", "with" before lang
+lang_prefix = ["on", "in", "with", "using"]
+safe_langs = { 
+    "python": ["py", "py3", "python 3", "python3"],
+    "c": ["c", "cpp", "c++"],
+    "java": ["java"],
+    "go": ["go", "golang"],
+    "rust": ["rs"]
+}
+
+unsafe_langs = {
+    "python": ["python"],
+    "go": ["go"],
+    "ruby": ["ruby"],
+    "rust": ["rust"]
+}
+
+def which_lang_alias(word):
+    for lang, alias in safe_langs.items():
+        if word in alias:
+            return (True, lang)
+    for lang, alias in unsafe_langs.items():
+        if word in alias:
+            return (False, lang)
+    return None
+
+def which_lang(prompt):
     words = prompt.split()
-    for word in reversed(words):
-        for lang, alias in langs.items():
-            if word in alias:
+    if len(words) == 1:
+        res = which_lang_alias(words[0])
+        if res:
+            return res[1]
+        return None
+    for i in range(len(words)-1, -1, -1):
+        res = which_lang_alias(words[i])
+        if res:
+            safe, lang = res
+            if safe:
+                return lang
+            elif i > 0 and words[i-1] in lang_prefix:
                 return lang
     return None
 
-device = "cuda" if torch.cuda.is_available() else "cpu"
-model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2", device=device)
+class TestLangInference(unittest.TestCase):
 
-langs = { # add more as required
-        "python": ["py", "py3", "python", "python 3", "python3"],
-        "c": ["c", "cpp", "c++"]
-        }
+    def test_lang_inference_no_prefix_unsafe(self):
+        lang = which_lang("what is the largest python")
+        self.assertIsNone(lang, f"no prefix word meaning non-programming context, actual: {lang}")
 
-emb_1 = model.encode(["how to iterate like c through lists in py"], convert_to_tensor=True)
-emb1_lang = which_lang("how to iterate like c through lists in py")
+    def test_lang_inference_no_prefix_safe(self):
+        lang = which_lang("how to use dicts py")
+        self.assertEqual(lang, "python", f"no prefix word but safe alias means programming context, actual: {lang}")
 
-emb_2 = model.encode(["how to iterate over a list in c"], convert_to_tensor=True)
-emb2_lang = which_lang("how to iterate over a list in c")
+    def test_lang_inference_prefix_unsafe(self):
+        lang = which_lang("array syntax in python")
+        self.assertEqual(lang, "python", f"prefix word with unsafe alias means programming context, actual: {lang}")
 
-emb_3 = model.encode(["how to python loop over a list in c"], convert_to_tensor=True)
-emb3_lang = which_lang("how to python loop over a list in c")
-
-emb_4 = model.encode(["iterate over py list"], convert_to_tensor=True)
-emb4_lang = which_lang("iterate over py list")
-
-embeddings = {
-    "py_iterate": (emb_1, emb1_lang),
-    "c_iterate_1": (emb_2, emb2_lang),
-    "c_iterate_2": (emb_3, emb3_lang),
-    "py_loop": (emb_4, emb4_lang)
-}
-
-names = list(embeddings.keys())
-for i in range(len(names)):
-    for j in range(i + 1, len(names)):
-        emb_i, lang_i = embeddings[names[i]]
-        emb_j, lang_j = embeddings[names[j]]
-        # Only compare if same language
-        if lang_i == lang_j:
-            sim = torch.nn.functional.cosine_similarity(emb_i, emb_j)
-            print(f"Cosine similarity between '{names[i]}' and '{names[j]}': {sim.item():.4f}")
+if __name__ == '__main__':
+    unittest.main()
 

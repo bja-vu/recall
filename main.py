@@ -29,7 +29,8 @@ def init_db():
                 prompt TEXT,
                 response TEXT,
                 type TEXT,
-                vec BLOB
+                vec BLOB,
+                lang TEXT,
                 )
     ''')
     return con,cur
