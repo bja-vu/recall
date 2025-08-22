@@ -25,7 +25,7 @@ def which_lang_alias(word):
             return (False, lang)
     return None
 
-def which_lang(prompt):
+def which_lang_old(prompt):
     words = prompt.split()
     if len(words) == 1:
         res = which_lang_alias(words[0])
@@ -42,6 +42,25 @@ def which_lang(prompt):
                 return lang
     return None
 
+def which_lang(prompt):
+    prefix_wds = ["in", "on", "with", "using"]
+    words = prompt.split()
+    first_alias = None
+    # check for len = 1
+    # pretend code is here for now
+
+    for i in range (1, len(words)):
+        res = which_lang_alias(words[i])
+        if res:
+            safe, lang = res
+            if safe:
+                if first_alias is None:
+                    first_alias = lang
+            if words[i-1] in prefix_wds:
+                return lang
+    return first_alias if first_alias else None
+
+
 class TestLangInference(unittest.TestCase):
 
     def test_lang_inference_no_prefix_unsafe(self):
@@ -56,6 +75,21 @@ class TestLangInference(unittest.TestCase):
         lang = which_lang("array syntax in python")
         self.assertEqual(lang, "python", f"prefix word with unsafe alias means programming context, actual: {lang}")
 
+    def test_lang_inference_many_alias_unsafe(self):
+        lang = which_lang("how to do c style arrays in python")
+        self.assertEqual(lang, "python", f"prefix word with ANY alias and multiple alias' means programming context, actual: {lang}")
+
+    def test_lang_inference_many_alias_safe(self):
+        lang = which_lang("how to do c style arrays in py")
+        self.assertEqual(lang, "python", f"prefix word with ANY alias and multiple alias' means programming context, actual: {lang}")
+
+    def test_lang_inference_many_alias_no_prefix(self):
+        lang = which_lang("how to use c lists like python")
+        self.assertEqual(lang, "c", f"no prefix word with multiple alias' means programming context, actual: {lang}")
+
+    def test_lang_inference_many_alias_prefix_unsafe(self):
+        lang = which_lang("c lists and arrays in python")
+        self.assertEqual(lang, "python", f"prefix word with multiple alias' means programming context, actual: {lang}")
 if __name__ == '__main__':
     unittest.main()
 
