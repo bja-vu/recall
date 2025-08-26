@@ -6,6 +6,8 @@ import subprocess
 import json
 import sqlite3
 
+from lang_utils import detect_lang
+
 # globals
 model = "capybarahermes-2.5-mistral-7b.Q4_K_M"
 
@@ -30,7 +32,7 @@ def init_db():
                 response TEXT,
                 type TEXT,
                 vec BLOB,
-                lang TEXT,
+                lang TEXT
                 )
     ''')
     return con,cur
@@ -121,11 +123,11 @@ def curl_llm(messages):
     answer = json.loads(out)
     return answer["choices"][0]["message"]["content"].strip()
     
-def save_to_db(cur, prompt, raw, prompt_type):
+def save_to_db(cur, prompt, raw, prompt_type, vec, lang):
     if not prompt or not raw:
         raise ValueError("Prompt or response is empty, exiting...")
-    cur.execute("INSERT INTO prompts (prompt, response, type) VALUES (?, ?, ?)",
-                (prompt, raw, prompt_type))
+    cur.execute("INSERT INTO prompts (prompt, response, type, vec, lang) VALUES (?, ?, ?,?,?)",
+                (prompt, raw, prompt_type, vec, lang))
 
 def main():
     console = Console()
@@ -140,13 +142,18 @@ def main():
         return
     history = chat_context(cur) if prompt_type == "chat" else []
 
+    vec = None # needs to be added here, or included as a module
+
+    # lang will only be tagged on recalls
+    lang = detect_lang(prompt) if prompt_type == "recall" else None
+
     messages = [{"role": "user", "content": prompt_tune}] + history
     messages.append({"role": "user", "content": prompt})
 
     raw = curl_llm(messages)
     console.print(Markdown(raw))
     
-    save_to_db(cur, prompt, raw, prompt_type)
+    save_to_db(cur, prompt, raw, prompt_type, vec, lang)
     con.commit()
     con.close()
 
