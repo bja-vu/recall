@@ -6,11 +6,20 @@ import subprocess
 import json
 import sqlite3
 
+from sentence_transformers import SentenceTransformer
+import torch
+import numpy as np
+
 from lang_utils import detect_lang
 
-# globals
-model = "capybarahermes-2.5-mistral-7b.Q4_K_M"
 
+
+# globals
+device = 'cuda' if torch.cuda.is_available() else 'cpu'
+print(device)
+
+model = "capybarahermes-2.5-mistral-7b.Q4_K_M"
+vec_model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2", device=device)
 prompt_tune = (
        "Always answer in two sentences or under 50 words. No extra explanation. No notes.\n"
     "Assume the user understands the general topic and needs a quick reminder. Freely use slang and jargon where necessary. ALWAYS answer the question.\n"
@@ -129,6 +138,15 @@ def save_to_db(cur, prompt, raw, prompt_type, vec, lang):
     cur.execute("INSERT INTO prompts (prompt, response, type, vec, lang) VALUES (?, ?, ?,?,?)",
                 (prompt, raw, prompt_type, vec, lang))
 
+def to_vector(input):
+    return vec_model.encode(input, convert_to_tensor=True)
+
+def cosine_similarity(vec1, vec2):
+    return np.dot(vec1, vec2) / (np.linalg.norm(vec1) * np.linalg.norm(vec2))
+
+def to_bytes(vec):
+    return vec.cpu().numpy().tobytes() # sqlite cant store tensors so we need to move to cpu
+
 def main():
     console = Console()
     con, cur = init_db()
@@ -142,7 +160,8 @@ def main():
         return
     history = chat_context(cur) if prompt_type == "chat" else []
 
-    vec = None # needs to be added here, or included as a module
+    vec = to_vector(prompt)
+    print("encoding complete")
 
     # lang will only be tagged on recalls
     lang = detect_lang(prompt) if prompt_type == "recall" else None
@@ -153,7 +172,7 @@ def main():
     raw = curl_llm(messages)
     console.print(Markdown(raw))
     
-    save_to_db(cur, prompt, raw, prompt_type, vec, lang)
+    save_to_db(cur, prompt, raw, prompt_type, to_bytes(vec), lang)
     con.commit()
     con.close()
 

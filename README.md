@@ -36,3 +36,7 @@ history='python3 main.py h'
 
 - [ ] Contextual inference and specialised model/prompt pairs for certain tasks
     - e.g. different models and prompt tunes for conceptual prompts vs programming
+
+
+# encoding tests
+encoding is VERY slow currently, with one test taking 7s to encode.
