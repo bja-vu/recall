@@ -21,15 +21,18 @@ using `alias` allows for clean usage of the tool in the CLI, but zsh restricts t
 
 My setups:
 recall='python3 main.py r'
+
 chat='python3 main.py c'
+
 history='python3 main.py h'
 ## TODO
-- [x] formatting parser converting markdown into rich markup
-- [x] Database integration and history printing
-> Note: the history currently includes chat messages
 - [ ] semi-automatic performance improvement
 > Basic Memoisation using prompt comparison (Full-Auto)
 > Memoisation using prompt "*keyword*" comparison and User Confirmation (Semi-Auto)
 > Cosine Similarity using ML techniques and converting prompts to vectors (Full-Auto)
-- [x] Conversation mode with basic context
-- [x] Fuzzy search using `history` with an argument, returns *n* prompt/response pairs with the arg featured in the prompt or response.
+
+- [ ] Implement Vectorisation and memoisation into main
+- [ ] Test memoisation and fine-tune
+
+- [ ] Contextual inference and specialised model/prompt pairs for certain tasks
+    - e.g. different models and prompt tunes for conceptual prompts vs programming
