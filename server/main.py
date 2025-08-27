@@ -1,8 +1,10 @@
 from fastapi import FastAPI
+from fastapi import Request
 
 app = FastAPI()
 
-
-@app.get("/")
-async def root():
-    return {"message": "hello world"}
+@app.post("/read")
+async def read(req: Request):
+    data = await req.json()
+    text = data.get("text", "")
+    return {"user_sent": text}
