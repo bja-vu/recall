@@ -1,4 +1,4 @@
-#include "crow_all.h"
+#include "crow.h"
 #include "llama.h"
 #include <iostream>
 #include <vector>
@@ -116,7 +116,7 @@ int main() {
     llama_free(ctx);
     llama_model_free(model);*/
 
-    	/*
+    	
 	crow::SimpleApp app;
 
 	CROW_ROUTE(app, "/")([](){
@@ -124,5 +124,5 @@ int main() {
 	});
 
 	app.port(8000).multithreaded().run();
-	*/
+	
 }
