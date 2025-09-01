@@ -123,6 +123,16 @@ int main() {
 		return "hello world";
 	});
 
+	CROW_ROUTE(app, "/generate").methods("POST"_method)([](const crow::request& req) {
+		auto body = crow::json::load(req.body);
+		if (!body) { return crow::response(400, "Invalid JSON"); }
+
+		std::string prompt = body["prompt"].s();
+		crow::json::wvalue res;
+		res["msg"] = run_llm(prompt); // TODO: implement method
+		return crow::response(res);
+	});
+
 	app.port(8000).multithreaded().run();
 	
 }
