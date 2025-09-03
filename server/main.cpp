@@ -4,17 +4,18 @@
 #include <vector>
 
 const std::string model_path = "../models/capybarahermes-2.5-mistral-7b.Q4_K_M.gguf"; // #TODO get model path from args
-const std::string prompt= "the capital of portugal is";
 const int ngl = 99;
-const int n_predict = 128;
+const int n_predict = 256; //128
 
 const std::string prompt_tune =     
+	"### SYSTEM INSTRUCTIONS\n"
 	"Always answer in two sentences or under 50 words. No extra explanation. No notes.\n"
 	"Assume the user understands the general topic and needs a quick reminder. Freely use slang and jargon where necessary. ALWAYS answer the question.\n"
 	"If the question refers to something that does not exist or is incorrect, say so. Do not answer untruthfully.\n"
 	"If the question is programming related, be pragmatic with your answers. Opt for code instead of descriptions.\n"
 	"Reply using markdown syntax only. Use one asterisk (*text*) for italics, two asterisks (**text**) for bold, and backticks (`text`) for inline code.\n"
-	"Infer missing context from previous messages. Never ask for clarification.\n";
+	"Infer missing context from previous messages. Never ask for clarification.\n"
+	"### END SYSTEM INSTRUCTIONS\n";
 
 llama_model* model;
 llama_context* ctx;
@@ -56,40 +57,36 @@ int init_model() {
 }
 
 std::string run_llm(const std::string& prompt) {
-	std::string final_prompt = "\nUser: " + prompt + "\nAssistant: ";
-
+	std::string final_prompt = prompt_tune + "\nUser: " + prompt + "\nAssistant: ";
 	int n_prompt = -llama_tokenize(vocab, final_prompt.c_str(), final_prompt.size(), NULL, 0, true, true);
 	std::vector<llama_token> prompt_tokens(n_prompt);
-	if (llama_tokenize(vocab, final_prompt.c_str(), final_prompt.size(), prompt_tokens.data(), prompt_tokens.size(), true, true) < 0) {
-		// TODO: error handling
-		printf("error: failed to tokenize prompt.\n");
-		return "";
-		}
-	llama_batch batch = llama_batch_get_one(prompt_tokens.data(), prompt_tokens.size());
 
+	if (llama_tokenize(vocab, final_prompt.c_str(), final_prompt.size(), prompt_tokens.data(), prompt_tokens.size(), true, true) < 0) {
+	    printf("error: failed to tokenize prompt.\n");
+	    return "";
+	}
+
+	llama_batch batch = llama_batch_get_one(prompt_tokens.data(), prompt_tokens.size());
 	std::string output;
 	llama_token new_token_id;
 
-	for (int n_pos = 0; n_pos+batch.n_tokens < n_prompt + n_predict;) {
-		if (llama_decode(ctx, batch)) {
-			printf("error: llama_decode failed");
-			return "";
-		}
-	n_pos += batch.n_tokens;
-	new_token_id = llama_sampler_sample(smpl, ctx, -1);
-	if (llama_vocab_is_eog(vocab, new_token_id)) break;
+	for (int n_pos = 0; n_pos + batch.n_tokens < n_prompt + n_predict;) {
+	    if (llama_decode(ctx, batch)) { printf("error: llama_decode failed"); return ""; }
+	    n_pos += batch.n_tokens;
+	    new_token_id = llama_sampler_sample(smpl, ctx, -1);
+	    if (llama_vocab_is_eog(vocab, new_token_id)) break;
 
-	char buf[128];
-	int n = llama_token_to_piece(vocab, new_token_id, buf, sizeof(buf), 0, true);
-	if (n < 0) continue;
+	    char buf[128];
+	    int n = llama_token_to_piece(vocab, new_token_id, buf, sizeof(buf), 0, true);
+	    if (n < 0) continue;
 
-	output.append(buf, n);
-
-	batch = llama_batch_get_one(&new_token_id, 1);
+	    output.append(buf, n);
+	    batch = llama_batch_get_one(&new_token_id, 1);
 	}
+
 	return output;
 }
-
+	
 int main() {
     	if (init_model() == 1) {
 		return 1;
@@ -100,21 +97,30 @@ int main() {
 		return "hello world";
 	});
 
-	CROW_ROUTE(app, "/generate").methods("POST"_method)([](const crow::request& req) {
+	CROW_ROUTE(app, "/recall").methods("POST"_method)([](const crow::request& req) {
 		auto body = crow::json::load(req.body);
-		if (!body) { return crow::response(400, "Invalid JSON"); }
-
+		if (!body) return crow::response(400, "invalid input");
 		std::string prompt = body["prompt"].s();
-
-		std::string response = run_llm(prompt);
-		if (response == "") {
-			crow::json::wvalue err;
-			err["error"] = "error: response was empty.";
-			return crow::response(500, err.dump());
-		}
+		std::string resp = run_llm(prompt);
 		crow::json::wvalue res;
-		res["msg"] = response;
+		res["text"] = resp.empty() ? "error: generation failed" : resp;
 		return crow::response(res);
+	});
+
+	CROW_ROUTE(app, "/chat").methods("POST"_method)([](const crow::request& req) { // TODO: add sqlite server and chat functionality
+		auto body = crow::json::load(req.body);
+		if (!body) return crow::response(400, "invalid input");
+		std::string prompt = body["prompt"].s();
+		std::string resp = run_llm(prompt);
+		crow::json::wvalue res;
+		res["text"] = resp.empty() ? "error: generation failed" : resp;
+		return crow::response(res);
+	});
+
+	CROW_ROUTE(app, "/history").methods("POST"_method)([](const crow::request& req) {
+		auto body = crow::json::load(req.body);
+		if (!body) return crow::response(400, "invalid input");
+		return crow::response(501, "not implemented");
 	});
 
 	app.port(8000).multithreaded().run();
