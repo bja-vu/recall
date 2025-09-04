@@ -3,7 +3,8 @@
 #include <iostream>
 #include <vector>
 
-const std::string model_path = "../models/capybarahermes-2.5-mistral-7b.Q4_K_M.gguf"; // #TODO get model path from args
+const char* mp = std::getenv("MODEL_PATH");
+const std::string model_path = mp ? std::string(mp) : "/app/models/capybarahermes-2.5-mistral-7b.Q4_K_M.gguf");
 const int ngl = 99;
 const int n_predict = 256; //128
 

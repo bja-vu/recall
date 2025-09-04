@@ -7,6 +7,7 @@ from rich.console import Console
 
 from lang_utils import detect_lang
 
+
 def parse_input(args):
     if (len(args) < 2):
         raise ValueError("Not enough args.\n")
@@ -42,6 +43,7 @@ def parse_input(args):
 
 url = "http://127.0.0.1:8000"
 
+
 def main():
     console = Console()
     prompt, prompt_type = parse_input(sys.argv)
@@ -50,13 +52,13 @@ def main():
         req = requests.post(f"{url}/history", json=payload)
         # return last 10 prompt/response pairs and print
         return
-        
+
     payload = {"prompt": prompt}
     req = requests.post(f"{url}/{prompt_type}", json=payload)
 
     response = req.json()["text"]
-    console.print(response)
+    console.print(Markdown(response))
+
 
 if __name__ == "__main__":
     main()
-
