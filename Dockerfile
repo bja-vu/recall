@@ -1,5 +1,6 @@
 FROM nvidia/cuda:11.8.0-cudnn8-devel-ubuntu22.04
 
+# Install build dependencies
 RUN apt-get update && apt-get install -y \
     build-essential \
     cmake \
@@ -12,37 +13,30 @@ RUN apt-get update && apt-get install -y \
     python3-dev \
     python3-pip \
     libasio-dev \
-    libcurl4-openssl-dev \ 
+    libcurl4-openssl-dev \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
+# Copy llama.cpp source
+COPY external ./external
+
+# Set up CUDA stubs for build
 RUN ln -s /usr/local/cuda/lib64/stubs/libcuda.so /usr/local/cuda/lib64/stubs/libcuda.so.1 && \
     echo "/usr/local/cuda/lib64/stubs" > /etc/ld.so.conf.d/cuda-stubs.conf && \
     ldconfig
 
-# Copy dependencies
-COPY external ./external
-
-# Build llama.cpp
+# Build llama.cpp with CUDA
 RUN cd external/llama.cpp && \
-    mkdir -p build && \
-    cd build && \
-    cmake .. -DGGML_CUDA=${ENABLE_CUDA} -DCMAKE_BUILD_TYPE=Release && \
-    make -j$(nproc) && \
-    make install
-
-# Build Crow
-RUN cd external/Crow && \
-    mkdir -p build && \
-    cd build && \
-    cmake .. -DCMAKE_BUILD_TYPE=Release && \
-    make -j$(nproc)
+    rm -rf build && mkdir build && cd build && \
+    cmake .. -DGGML_CUDA=ON -DCMAKE_BUILD_TYPE=Release \
+      -DCMAKE_EXE_LINKER_FLAGS="-Wl,-rpath-link,/usr/local/cuda/lib64/stubs" && \
+    make -j$(nproc) && make install
 
 # Copy server code
 COPY server ./server
 
-# Hardcoded g++ build
+# Build server
 RUN g++ -std=c++17 -O3 \
     -I/usr/local/include \
     -Iexternal/Crow/include \
@@ -54,6 +48,9 @@ RUN g++ -std=c++17 -O3 \
     -Wl,-rpath,/usr/local/lib \
     -o recall_server
 
+# Cleanup stubs AFTER all linking is done
+RUN rm -f /etc/ld.so.conf.d/cuda-stubs.conf || true && \
+    rm -f /usr/local/cuda/lib64/stubs/libcuda.so* || true && \
+    ldconfig
 
-EXPOSE 8000
 CMD ["./recall_server"]
