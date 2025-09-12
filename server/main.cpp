@@ -4,7 +4,7 @@
 #include <vector>
 
 const char* mp = std::getenv("MODEL_PATH");
-const std::string model_path = mp ? std::string(mp) : "/app/models/capybarahermes-2.5-mistral-7b.Q4_K_M.gguf");
+const std::string model_path = mp ? std::string(mp) : "/app/models/capybarahermes-2.5-mistral-7b.Q4_K_M.gguf";
 const int ngl = 99;
 const int n_predict = 256; //128
 
@@ -27,7 +27,11 @@ int init_model() {
 	ggml_backend_load_all();
 	llama_model_params model_params = llama_model_default_params();
 	model_params.n_gpu_layers = ngl;
-
+	if (llama_supports_gpu_offload()) {
+	    printf("GPU backend is available!\n");
+	} else {
+	    printf("No GPU backend detected.\n");
+	}
 	model = llama_model_load_from_file(model_path.c_str(), model_params);
 	if (model == NULL) {
 		printf("error: unable to load model.\n");

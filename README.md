@@ -1,4 +1,7 @@
 ## recall - an offline command-line assistant
+docker build --build-arg ENABLE_CUDA=OFF -t recall:latest .
+docker build -t recall .
+docker run -p 8000:8000 --gpus all -v $(pwd)/models:/app/models recall
 
 cmake .. -DGGML_CUDA=OFF
 make  -j
