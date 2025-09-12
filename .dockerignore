@@ -1,0 +1,81 @@
+.git
+.gitignore
+
+__pycache__/
+*.pyc
+*.pyo
+
+*.log
+*.tmp
+*.swp
+*.swo
+
+build/
+cmake-build-debug/
+cmake-build-release/
+
+node_modules/
+
+*.csv
+*.tsv
+*.json
+*.zip
+*.tar.gz
+
+.vscode/
+.idea/
+*.iml
+
+Dockerfile
+docker-compose.yml
+
+*.bak
+*.old
+*.orig
+
+# .dockerignore - exclude files that don't need to be in the build context
+
+# Build artifacts
+build/
+*.o
+*.a
+*.so
+*.exe
+
+# Version control
+.git/
+.gitignore
+
+# Documentation
+*.md
+README*
+docs/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Docker files (don't need these in the container)
+Dockerfile*
+docker-compose*
+.dockerignore
+
+# Only include what we actually need:
+# - server/ (your application code)  
+# - external/ (dependencies)
+# - CMakeLists.txt (build configuration)
