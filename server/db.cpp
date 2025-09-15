@@ -3,8 +3,8 @@
 #include <stdexcept>
 
 Database::Database(const std::string& path) {
-	if (sqlite3_open(path.c_str(), &db_)) {
-		printf("Error: Cannot open database.\n");
+	if (sqlite3_open(path.c_str(), &db_) != SQLITE_OK) {
+		printf("Error opening database. %s\n", sqlite3_errmsg(db_));
 		db_ = NULL;
 	} else {
 		const char* create_sql_stmt = R"(
@@ -90,4 +90,38 @@ std::vector<std::pair<std::string,std::string>> Database::chatHistory(int limit)
 
 	sqlite3_finalize(stmt);
 	return results;
+}
+
+
+std::vector<std::pair<std::string,std::string>> Database::historySearch(const std::string& search, int limit) {
+	std::vector<std::pair<std::string,std::string>> results;
+	const char* sql = "SELECT prompt, response FROM prompts "
+	"WHERE prompt LIKE ? OR response LIKE ? "
+	"ORDER BY id DESC LIMIT ?";
+
+	sqlite3_stmt* stmt;
+	if (sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+		printf("Prepare failed: %s\n", sqlite3_errmsg(db_));
+		return results;
+	}
+
+	sqlite3_bind_text(stmt, 1, search.c_str(), -1, SQLITE_TRANSIENT);
+	sqlite3_bind_text(stmt, 2, search.c_str(), -1, SQLITE_TRANSIENT);
+	sqlite3_bind_int(stmt, 3, limit);
+
+	while (sqlite3_step(stmt) == SQLITE_ROW) {
+		std::string p = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
+		std::string r = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
+		results.emplace_back(p, r);
+	}
+	
+	sqlite3_finalize(stmt);
+	return results;
+}
+
+void Database::close() {
+	if (db_) {
+		sqlite3_close(db_);
+		db_ = NULL;
+	}
 }

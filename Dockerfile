@@ -1,7 +1,7 @@
 FROM nvidia/cuda:11.8.0-cudnn8-devel-ubuntu22.04
 
-ARG BUILD_TARGET=server
-ARG ENABLE_CUDA=ON
+ARG BUILD_TARGET
+ARG ENABLE_CUDA
 
 RUN apt-get update && apt-get install -y \
     build-essential \

@@ -1,28 +1,26 @@
 ## recall - an offline command-line assistant
-docker build --build-arg ENABLE_CUDA=OFF -t recall:latest .
-docker build -t recall .
-docker run -p 8000:8000 --gpus all -v $(pwd)/models:/app/models recall
 
-cmake .. -DGGML_CUDA=OFF
-make  -j
+### Building
+recall can be built using Docker. The dockerfile can produce wither recall_test or recall_server.
 
-server command: ./external/llama.cpp/build/bin/llama-server -m "models/capybarahermes-2.5-mistral-7b.Q4_K_M.gguf"
+`docker run -p 8000:8000 -v $(pwd)/models:/app/models -v $(pwd)/data:/app/data --gpus all -t recall ./recall_test`
 
-optional: `--verbose`
+`docker build --build-arg ENABLE_CUDA=ON --build-arg BUILD_TARGET=test -t recall .`
 
-GPU running is significantly faster. To enable, add the arg `--n-gpu-layers x`
+GPU running is significantly faster. To enable, add the arg `--gpus all` to the Docker run command.
 
 Test numbers:
 total time =   11222.49 ms /    71 tokens -- 10 layers
 total time =   20689.93 ms /   122 tokens -- 0 layers (CPU)
 total time =    1063.58 ms /    71 tokens -- 35 layers
 
+> Note that I've set up llama.cpp to use the maximum amount of GPU layers.
+
 To use GPU, you need CUDA toolkit installed (both on windows and in WSL). Then, build:
 https://github.com/ggml-org/llama.cpp/blob/master/docs/build.md#cuda
 
-models typically display the max number of layers.
 
-## Aliasing
+### Aliasing
 using `alias` allows for clean usage of the tool in the CLI, but zsh restricts the usage of question marks (?) due to their usage in globbing.
 
 My setups:
@@ -31,14 +29,15 @@ recall='python3 main.py r'
 chat='python3 main.py c'
 
 history='python3 main.py h'
-## TODO
-- [ ] semi-automatic performance improvement
-> Basic Memoisation using prompt comparison (Full-Auto)
-> Memoisation using prompt "*keyword*" comparison and User Confirmation (Semi-Auto)
-> Cosine Similarity using ML techniques and converting prompts to vectors (Full-Auto)
 
-- [ ] Implement Vectorisation and memoisation into main
-- [ ] Test memoisation and fine-tune
+---
+
+## TODO
+- [x] Custom C++ server using Crow, llama.cpp
+- [x] SQLite integration
+- [ ] String embedding and cosine similarity using a model from hugging face
+- [ ] Chat mode capabilities
+- [ ] Docker caching properly to avoid rebuilding llama.cpp
 
 - [ ] Contextual inference and specialised model/prompt pairs for certain tasks
     - e.g. different models and prompt tunes for conceptual prompts vs programming

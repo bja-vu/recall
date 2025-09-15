@@ -1,3 +1,4 @@
+#include "db.h"
 #include "crow.h"
 #include "llama.h"
 #include <iostream>
@@ -96,27 +97,38 @@ int main() {
     	if (init_model() == 1) {
 		return 1;
 	}
+	Database db("data/memory.db");
 	crow::SimpleApp app;
 
 	CROW_ROUTE(app, "/")([](){
 		return "hello world";
 	});
 
+	//TODO: add embedding for prompts + language inference heuristic
+
 	CROW_ROUTE(app, "/recall").methods("POST"_method)([](const crow::request& req) {
+		std::vector<float> vec = {};
+		std::string lang = "";
+
 		auto body = crow::json::load(req.body);
 		if (!body) return crow::response(400, "invalid input");
 		std::string prompt = body["prompt"].s();
 		std::string resp = run_llm(prompt);
+		db.savePrompt(prompt, resp, "recall", vec, lang);
 		crow::json::wvalue res;
 		res["text"] = resp.empty() ? "error: generation failed" : resp;
 		return crow::response(res);
 	});
 
-	CROW_ROUTE(app, "/chat").methods("POST"_method)([](const crow::request& req) { // TODO: add sqlite server and chat functionality
+	CROW_ROUTE(app, "/chat").methods("POST"_method)([](const crow::request& req) {
+		std::vector<float> vec = {};
+		std::string lang = "";
+
 		auto body = crow::json::load(req.body);
 		if (!body) return crow::response(400, "invalid input");
 		std::string prompt = body["prompt"].s();
 		std::string resp = run_llm(prompt);
+		db.savePrompt(prompt, resp, "recall", vec, lang);
 		crow::json::wvalue res;
 		res["text"] = resp.empty() ? "error: generation failed" : resp;
 		return crow::response(res);
@@ -125,7 +137,8 @@ int main() {
 	CROW_ROUTE(app, "/history").methods("POST"_method)([](const crow::request& req) {
 		auto body = crow::json::load(req.body);
 		if (!body) return crow::response(400, "invalid input");
-		return crow::response(501, "not implemented");
+		
+		auto rows = db.chatHistory
 	});
 
 	app.port(8000).multithreaded().run();
