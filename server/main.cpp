@@ -106,7 +106,7 @@ int main() {
 
 	//TODO: add embedding for prompts + language inference heuristic
 
-	CROW_ROUTE(app, "/recall").methods("POST"_method)([](const crow::request& req) {
+	CROW_ROUTE(app, "/recall").methods("POST"_method)([&db](const crow::request& req) {
 		std::vector<float> vec = {};
 		std::string lang = "";
 
@@ -120,7 +120,7 @@ int main() {
 		return crow::response(res);
 	});
 
-	CROW_ROUTE(app, "/chat").methods("POST"_method)([](const crow::request& req) {
+	CROW_ROUTE(app, "/chat").methods("POST"_method)([&db](const crow::request& req) {
 		std::vector<float> vec = {};
 		std::string lang = "";
 
@@ -128,17 +128,17 @@ int main() {
 		if (!body) return crow::response(400, "invalid input");
 		std::string prompt = body["prompt"].s();
 		std::string resp = run_llm(prompt);
-		db.savePrompt(prompt, resp, "recall", vec, lang);
+		db.savePrompt(prompt, resp, "chat", vec, lang);
 		crow::json::wvalue res;
 		res["text"] = resp.empty() ? "error: generation failed" : resp;
 		return crow::response(res);
 	});
 
-	CROW_ROUTE(app, "/history").methods("POST"_method)([](const crow::request& req) {
+	CROW_ROUTE(app, "/history").methods("POST"_method)([&db](const crow::request& req) {
 		auto body = crow::json::load(req.body);
 		if (!body) return crow::response(400, "invalid input");
 		
-		auto rows = db.chatHistory
+		auto rows = db.chatHistory();
 	});
 
 	app.port(8000).multithreaded().run();

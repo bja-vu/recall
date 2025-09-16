@@ -22,7 +22,10 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /app
 
 # Copy llama.cpp source
-COPY external/llama.cpp ./external/llama.cpp
+# COPY external/llama.cpp ./external/llama.cpp
+
+# Copy all external dependencies
+COPY external/ ./external/
 
 # Set up CUDA stubs for build
 RUN ln -s /usr/local/cuda/lib64/stubs/libcuda.so /usr/local/cuda/lib64/stubs/libcuda.so.1 && \

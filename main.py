@@ -37,7 +37,7 @@ def parse_input(args):
 
     if mode == 'r':
         return prompt, "recall"
-    elif mode == 'c':
+    if mode == 'c':
         return prompt, "chat"
 
 
