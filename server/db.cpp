@@ -69,27 +69,53 @@ void Database::savePrompt(const std::string& prompt,
 	// Finalize
 	sqlite3_finalize(stmt);
 }
-// Fetch last N prompts/responses
-std::vector<std::pair<std::string,std::string>> Database::chatHistory(int limit) {
-	std::vector<std::pair<std::string,std::string>> results;
-	const char* sql = "SELECT prompt, response FROM prompts ORDER BY id DESC LIMIT ?";
 
-	sqlite3_stmt* stmt;
-	if (sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr) != SQLITE_OK) {
-		printf("Prepare failed: %s\n", sqlite3_errmsg(db_));
-		return results;
+std::vector<std::pair<std::string,std::string>> Database::chatHistory() {
+	std::vector<std::pair<std::string,std::string>> history;
+	sqlite3_stmt* stmt = NULL;
+
+	const std::string recall_sql = "SELECT prompt, response FROM prompts WHERE type='recall' ORDER BY id DESC LIMIT 1";
+	if (sqlite3_prepare_v2(db_, recall_sql, -1, &stmt, NULL) != SQLITE_OK) {
+		printf("Error: failed to prepare query\n");
 	}
 
-	sqlite3_bind_int(stmt, 1, limit);
-
-	while (sqlite3_step(stmt) == SQLITE_ROW) {
-		std::string p = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
-		std::string r = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
-		results.emplace_back(p, r);
+	int rc = sqlite3_step(stmt);
+	bool is_recall = false;
+	std::string last_recall;
+	if (rc == SQLITE_ROW) {
+		last_recall = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
+		history.push_back({"assistant", last_recall});
+		is_recall = true;
 	}
-
 	sqlite3_finalize(stmt);
-	return results;
+
+	int last_recall_id = 0;
+	if (is_recall) {
+		std::string recall_id_sql = "SELECT id FROM prompts WHERE type='recall' ORDER BY id DESC LIMIT 1";
+		if(sqlite3_prepare_v2(db_, recall_id_sql, -1, &stmt, NULL) != SQLITE_OK) {
+			printf("Error: failed to prepare id query");
+		}
+		if (sqlite3_step(stmt) == SQLITE_ROW) {
+			last_recall_id = sqlite3_column_int(stmt(0);
+		}
+		sqlite3_finalize(stmt);
+	}
+	
+	const std::string chat_sql = "SELECT prompt, response FROM prompts WHERE id > ? AND type='chat' ORDER BY id";
+	if (sqlite3_prepare_v2(db_, chat_sql, -1, &stmt, NULL) != SQLITE_OK) {
+		printf("Error: failed to prepare chat query");
+	}
+	sqlite3_bind_int(stmt, 1, last_recall_id);
+
+	while ((rc = sqlite3_step(stmt) == SQLITE_ROW) {
+		std::string prompt = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
+		std::string response = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
+
+		history.push_back({"user",prompt});
+		history.push_back({"assistant",response});
+	}
+	sqlite3_finalize(stmt);
+	return history;
 }
 
 
