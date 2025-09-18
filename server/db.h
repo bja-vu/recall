@@ -17,6 +17,7 @@ public:
 		 	const std::string& lang);
 	std::vector<std::pair<std::string,std::string>> chatHistory();
 	std::vector<std::pair<std::string,std::string>> historySearch(std::optional<std::string> search, std::optional<int> limit);
+	std::string chatHistoryStr();
 	void close();
 private:
 	sqlite3* db_;

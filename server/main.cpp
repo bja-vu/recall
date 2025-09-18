@@ -42,8 +42,8 @@ int init_model() {
 	vocab = llama_model_get_vocab(model);
 
 	llama_context_params ctx_params = llama_context_default_params();
-	ctx_params.n_ctx = 2048;
-	ctx_params.n_batch = 512;
+	ctx_params.n_ctx = 4096; //2048
+	ctx_params.n_batch = 1024; //512
 
 	ctx = llama_init_from_model(model, ctx_params);
 	if (ctx == NULL) {
@@ -123,12 +123,12 @@ int main() {
 	CROW_ROUTE(app, "/chat").methods("POST"_method)([&db](const crow::request& req) {
 		std::vector<float> vec = {};
 		std::string lang = "";
-
 		auto body = crow::json::load(req.body);
 		if (!body) return crow::response(400, "invalid input");
-		std::string prompt = body["prompt"].s();
+		std::string userPrompt = body["prompt"].s();
+		std::string prompt = db.chatHistoryStr() + userPrompt;
 		std::string resp = run_llm(prompt);
-		db.savePrompt(prompt, resp, "chat", vec, lang);
+		db.savePrompt(userPrompt, resp, "chat", vec, lang);
 		crow::json::wvalue res;
 		res["text"] = resp.empty() ? "error: generation failed" : resp;
 		return crow::response(res);

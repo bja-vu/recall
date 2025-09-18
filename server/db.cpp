@@ -74,7 +74,7 @@ std::vector<std::pair<std::string,std::string>> Database::chatHistory() {
 	std::vector<std::pair<std::string,std::string>> history;
 	sqlite3_stmt* stmt = NULL;
 
-	const std::string recall_sql = "SELECT prompt, response FROM prompts WHERE type='recall' ORDER BY id DESC LIMIT 1";
+	const char* recall_sql = "SELECT prompt, response FROM prompts WHERE type='recall' ORDER BY id DESC LIMIT 1";
 	if (sqlite3_prepare_v2(db_, recall_sql, -1, &stmt, NULL) != SQLITE_OK) {
 		printf("Error: failed to prepare query\n");
 	}
@@ -91,23 +91,23 @@ std::vector<std::pair<std::string,std::string>> Database::chatHistory() {
 
 	int last_recall_id = 0;
 	if (is_recall) {
-		std::string recall_id_sql = "SELECT id FROM prompts WHERE type='recall' ORDER BY id DESC LIMIT 1";
+		const char* recall_id_sql = "SELECT id FROM prompts WHERE type='recall' ORDER BY id DESC LIMIT 1";
 		if(sqlite3_prepare_v2(db_, recall_id_sql, -1, &stmt, NULL) != SQLITE_OK) {
 			printf("Error: failed to prepare id query");
 		}
 		if (sqlite3_step(stmt) == SQLITE_ROW) {
-			last_recall_id = sqlite3_column_int(stmt(0);
+			last_recall_id = sqlite3_column_int(stmt, 0);
 		}
 		sqlite3_finalize(stmt);
 	}
 	
-	const std::string chat_sql = "SELECT prompt, response FROM prompts WHERE id > ? AND type='chat' ORDER BY id";
+	const char* chat_sql = "SELECT prompt, response FROM prompts WHERE id > ? AND type='chat' ORDER BY id";
 	if (sqlite3_prepare_v2(db_, chat_sql, -1, &stmt, NULL) != SQLITE_OK) {
 		printf("Error: failed to prepare chat query");
 	}
 	sqlite3_bind_int(stmt, 1, last_recall_id);
 
-	while ((rc = sqlite3_step(stmt) == SQLITE_ROW) {
+	while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
 		std::string prompt = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
 		std::string response = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
 
@@ -119,7 +119,16 @@ std::vector<std::pair<std::string,std::string>> Database::chatHistory() {
 }
 
 
-std::vector<std::pair<std::string,std::string>> Database::historySearch(const std::string& search, int limit) {
+std::vector<std::pair<std::string,std::string>> Database::historySearch(std::optional<std::string> search_opt, std::optional<int> limit_opt) {
+	std::string search = "%";
+	int limit = 10;
+	if (search_opt.has_value()) {
+		search = *search_opt;
+	}
+	if (limit_opt.has_value()) {
+		limit = *limit_opt;
+	}
+
 	std::vector<std::pair<std::string,std::string>> results;
 	const char* sql = "SELECT prompt, response FROM prompts "
 	"WHERE prompt LIKE ? OR response LIKE ? "
@@ -143,6 +152,21 @@ std::vector<std::pair<std::string,std::string>> Database::historySearch(const st
 	
 	sqlite3_finalize(stmt);
 	return results;
+}
+
+std::string Database::chatHistoryStr() {
+	auto history = chatHistory();
+	std::string res;
+	for (const auto& [role, text] : history) {
+		if (role == "user") {
+			res += "User: " + text + "\n";
+		} else if (role == "assistant") {
+			res += "Assistant: " + text + "\n";
+		} else {
+			res += role + ": " + text + "\n";
+		}
+	}
+	return res;
 }
 
 void Database::close() {
