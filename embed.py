@@ -9,7 +9,9 @@ app = FastAPI()
 
 @app.post("/embed")
 async def embed(req: Request):
+    print("embed request received")
     data = await req.json()
     text = data.get("prompt", "")
+    print("prompt: " + text)
     vec = model.encode(text, convert_to_numpy=True).tolist()
     return {"embedding": vec}

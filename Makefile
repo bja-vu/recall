@@ -1,7 +1,7 @@
 IMAGE = recall
 CONTAINER = recall_container
 
-ENABLE_CUDA ?= OFF
+CUDA ?= OFF
 TARGET ?= server
 GPUS ?= all
 
@@ -17,3 +17,12 @@ run:
 	-v $(PWD)/data:/app/data \
 	$(if $(GPUS),--gpus $(GPUS)) \
 	--rm -t $(IMAGE) ./recall_$(TARGET)
+
+compose-build:
+	TARGET=$(TARGET) ENABLE_CUDA=$(CUDA) docker compose build
+
+compose-up:
+	TARGET=$(TARGET) ENABLE_CUDA=$(CUDA) docker compose up
+
+compose-down:
+	docker compose down

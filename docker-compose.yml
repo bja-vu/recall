@@ -1,0 +1,35 @@
+version: "3.9"
+
+services:
+  cpp-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        BUILD_TARGET: server
+        ENABLE_CUDA: ${ENABLE_CUDA}
+    command: ./recall_server
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./models:/app/models
+      - ./data:/app/data
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities: [gpu]
+
+  embed-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        BUILD_TARGET: test
+        ENABLE_CUDA: ${ENABLE_CUDA}
+    command: uvicorn embed:app --host 0.0.0.0 --port 5001
+    ports:
+      - "5001:5001"
+    volumes:
+      - ./models:/app/models
+      - ./data:/app/data

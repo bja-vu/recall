@@ -3,10 +3,10 @@
 #include "llama.h"
 #include <iostream>
 #include <vector>
+#include <curl/curl.h>
 
 const char* mp = std::getenv("MODEL_PATH");
 const std::string model_path = mp ? std::string(mp) : "/app/models/capybarahermes-2.5-mistral-7b.Q4_K_M.gguf";
-const std::string embed_model_path = "app/models/embeddinggemma-300M-BF16.gguf";
 const int ngl = 99;
 const int n_predict = 256; //128
 
@@ -24,10 +24,6 @@ llama_model* model;
 llama_context* ctx;
 const llama_vocab* vocab;
 llama_sampler* smpl;
-
-llama_model* embed_model;
-llama_context* embed_ctx;
-const llama_vocab* embed_vocab;
 
 int init_model() {
 	// GPU "main" model init
@@ -65,27 +61,6 @@ int init_model() {
 	// or just do greedy
 	llama_sampler_chain_add(smpl, llama_sampler_init_greedy());
 	
-	// cpu embedding model
-	llama_model_params embed_params = llama_model_defaullt_params();
-	embed_params.n_gpu_layers = 0;
-
-	embed_model = llama_model_load_from_file(embed_model_path);
-	if (embed_model == NULL) {
-		printf("error: unable to load embedding model.\n");
-		return 1;
-	}
-
-	embed_vocab = llama_model_get_vocab(embed_model);
-
-	llama_context_params embed_cparams = llama_context_default_params();
-	embed_cparams.n_ctx = 512;
-	embed_cparams.n_batch = 256;
-
-	embed_ctx = llama_init_from_model(embed_model, embed_cparams);
-	if (embed_ctx == NULL) {
-		printf("error: failed to create embed context.\n");
-		return 1;
-	}
 	return 0;
 }
 
@@ -119,7 +94,70 @@ std::string run_llm(const std::string& prompt) {
 
 	return output;
 }
-	
+
+// based on method from https://curl.se/libcurl/c/CURLOPT_WRITEFUNCTION.html
+static size_t cb(void* data, size_t size, size_t nmemb, void* clientp) {
+	size_t total = size * nmemb;
+	std::string* s = static_cast<std::string*>(clientp);
+	s->append(static_cast<char*>(data), total);
+	return total;
+}
+
+std::vector<float> get_embedding(std::string text) {
+	CURL* curl = curl_easy_init();
+	if (!curl) { printf("error: curl init failed.\n"); }
+
+	std::string response;
+	std::string json_body = "{\"prompt\":\"" + text + "\"}";
+
+	curl_easy_setopt(curl,CURLOPT_URL, "http://embed-service:5001/embed");
+	curl_easy_setopt(curl, CURLOPT_POST, 1L);
+	curl_easy_setopt(curl, CURLOPT_POSTFIELDS, json_body.c_str());
+	curl_easy_setopt(curl, CURLOPT_HTTPHEADER, curl_slist_append(NULL, "Content-Type: application/json"));
+	curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, cb);
+	curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
+
+	CURLcode res = curl_easy_perform(curl);
+	curl_easy_cleanup(curl);
+
+	if (res != CURLE_OK) {
+		printf("error: curl failed.\n");
+	}
+	auto start = response.find('[');
+	auto end = response.find(']');
+	if (start == std::string::npos || end == std::string::npos) {
+		printf("error: bad json.\n");
+	}
+
+	std::string arr = response.substr(start + 1, end - start - 1);
+
+	std::vector<float> vec;
+	std::stringstream ss(arr);
+	std::string num;
+	while (std::getline(ss, num, ',')) {
+		vec.push_back(std::stof(num));
+	}
+	printf("prompt encoded.\n");
+	return vec;
+}
+
+float cosine_similarity(const std::vector<float>& a, const std::vector<float>& b) {
+	if (a.size() != b.size()) {
+		printf("error: vectors must be the same length.\n");
+	}
+	float dot = 0.0f;
+	float n_a = 0.0f;
+	float n_b = 0.0f;
+
+	for (size_t i = 0; i < a.size(); i++) {
+		dot += a[i] * b[i];
+		n_a = a[i] * a[i];
+		n_b = b[i] * b[i];
+	}
+	if (n_a == 0.0f || n_b == 0.0f) { return 0.0f; } // dont div by zero
+	return dot / (std::sqrt(n_a) * std::sqrt(n_b));
+}
+
 int main() {
     	if (init_model() == 1) {
 		return 1;
@@ -134,12 +172,14 @@ int main() {
 	//TODO: add embedding for prompts + language inference heuristic
 
 	CROW_ROUTE(app, "/recall").methods("POST"_method)([&db](const crow::request& req) {
-		std::vector<float> vec = {};
 		std::string lang = "";
 
 		auto body = crow::json::load(req.body);
 		if (!body) return crow::response(400, "invalid input");
 		std::string prompt = body["prompt"].s();
+
+		std::vector<float> vec = get_embedding(prompt);
+
 		std::string resp = run_llm(prompt);
 		db.savePrompt(prompt, resp, "recall", vec, lang);
 		crow::json::wvalue res;
@@ -148,11 +188,13 @@ int main() {
 	});
 
 	CROW_ROUTE(app, "/chat").methods("POST"_method)([&db](const crow::request& req) {
-		std::vector<float> vec = {};
 		std::string lang = "";
 		auto body = crow::json::load(req.body);
 		if (!body) return crow::response(400, "invalid input");
 		std::string userPrompt = body["prompt"].s();
+
+		std::vector<float> vec = get_embedding(userPrompt);
+
 		std::string prompt = db.chatHistoryStr() + userPrompt;
 		std::string resp = run_llm(prompt);
 		db.savePrompt(userPrompt, resp, "chat", vec, lang);

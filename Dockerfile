@@ -51,7 +51,7 @@ RUN if [ "$BUILD_TARGET" = "server" ]; then \
 		server/main.cpp server/db.cpp \
 		-L/usr/local/lib \
 		-lllama -lggml \
-		-lssl -lcrypto -lpthread -lsqlite3 \
+		-lssl -lcrypto -lpthread -lsqlite3 -lcurl \
 		-Wl,-rpath,/usr/local/lib \
 		-o recall_server ; \
 	else \
@@ -72,4 +72,7 @@ RUN rm -f /etc/ld.so.conf.d/cuda-stubs.conf || true && \
     rm -f /usr/local/cuda/lib64/stubs/libcuda.so* || true && \
     ldconfig
 
+# python
+RUN pip install --no-cache-dir fastapi uvicorn sentence-transformers
+COPY embed.py /app/embed.py
 # removed cmd call, add ./recall_{server/test} at end of docker run
