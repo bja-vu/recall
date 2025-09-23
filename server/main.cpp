@@ -6,6 +6,7 @@
 
 const char* mp = std::getenv("MODEL_PATH");
 const std::string model_path = mp ? std::string(mp) : "/app/models/capybarahermes-2.5-mistral-7b.Q4_K_M.gguf";
+const std::string embed_model_path = "app/models/embeddinggemma-300M-BF16.gguf";
 const int ngl = 99;
 const int n_predict = 256; //128
 
@@ -24,7 +25,12 @@ llama_context* ctx;
 const llama_vocab* vocab;
 llama_sampler* smpl;
 
+llama_model* embed_model;
+llama_context* embed_ctx;
+const llama_vocab* embed_vocab;
+
 int init_model() {
+	// GPU "main" model init
 	ggml_backend_load_all();
 	llama_model_params model_params = llama_model_default_params();
 	model_params.n_gpu_layers = ngl;
@@ -59,6 +65,27 @@ int init_model() {
 	// or just do greedy
 	llama_sampler_chain_add(smpl, llama_sampler_init_greedy());
 	
+	// cpu embedding model
+	llama_model_params embed_params = llama_model_defaullt_params();
+	embed_params.n_gpu_layers = 0;
+
+	embed_model = llama_model_load_from_file(embed_model_path);
+	if (embed_model == NULL) {
+		printf("error: unable to load embedding model.\n");
+		return 1;
+	}
+
+	embed_vocab = llama_model_get_vocab(embed_model);
+
+	llama_context_params embed_cparams = llama_context_default_params();
+	embed_cparams.n_ctx = 512;
+	embed_cparams.n_batch = 256;
+
+	embed_ctx = llama_init_from_model(embed_model, embed_cparams);
+	if (embed_ctx == NULL) {
+		printf("error: failed to create embed context.\n");
+		return 1;
+	}
 	return 0;
 }
 
