@@ -1,6 +1,7 @@
 #include "db.h"
 #include <iostream>
 #include <stdexcept>
+#include <cstring>
 
 Database::Database(const std::string& path) {
 	if (sqlite3_open(path.c_str(), &db_) != SQLITE_OK) {
@@ -169,7 +170,7 @@ std::string Database::chatHistoryStr() {
 	return res;
 }
 
-std::vector<std::vector<float>> Database::get_embeddings() {
+std::vector<std::vector<float>> Database::get_embeddings() const {
 	// returns all embeddings in a 2d list
 	// unopt - idk if it can be
 	std::vector<std::vector<float>> embeddings;
@@ -180,7 +181,7 @@ std::vector<std::vector<float>> Database::get_embeddings() {
 		printf("error: failed to prepare statement (vec. embeddings).\n");
 	}
 	while (sqlite3_step(stmt) == SQLITE_ROW) {
-		const void* blob = sqlite_column_blob(stmt, 0);
+		const void* blob = sqlite3_column_blob(stmt, 0);
 		int bytes = sqlite3_column_bytes(stmt, 0);
 
 		if (blob && bytes > 0) {
@@ -192,6 +193,30 @@ std::vector<std::vector<float>> Database::get_embeddings() {
 	}
 	sqlite3_finalize(stmt);
 	return embeddings;
+}
+
+std::pair<std::string, std::string> Database::get_entry(int id) {
+	std::string prompt;
+	std::string resp;
+	sqlite3_stmt* stmt = NULL;
+
+	const char* sql = "SELECT prompt, response FROM prompts WHERE id = ?";
+
+	if (sqlite3_prepare_v2(db_, sql, -1, &stmt, NULL) != SQLITE_OK) {
+		printf("error: failed to prepare statement (entry retrieval.\n");
+	}
+
+	if (sqlite3_bind_int(stmt, 1, id) != SQLITE_OK) {
+		printf("error: failed to bind id for entry retrieval.\n");
+		sqlite3_finalize(stmt);
+	}
+	if (sqlite3_step(stmt) == SQLITE_ROW) {
+		prompt = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
+		resp = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
+	}
+	sqlite3_finalize(stmt);
+	return {prompt, resp};
+}
 
 void Database::close() {
 	if (db_) {

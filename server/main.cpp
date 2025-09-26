@@ -151,11 +151,27 @@ float cosine_similarity(const std::vector<float>& a, const std::vector<float>& b
 
 	for (size_t i = 0; i < a.size(); i++) {
 		dot += a[i] * b[i];
-		n_a = a[i] * a[i];
-		n_b = b[i] * b[i];
+		n_a += a[i] * a[i];
+		n_b += b[i] * b[i];
 	}
 	if (n_a == 0.0f || n_b == 0.0f) { return 0.0f; } // dont div by zero
 	return dot / (std::sqrt(n_a) * std::sqrt(n_b));
+}
+
+std::pair<float, int> find_similar_response(const Database& db, const std::vector<float>& emb) {
+	// extract embeddings column
+	// iterate through running cosine similarity on arg and each embedding
+	// store highest score and its associated index (which equates to the col index)
+	// return
+	std::vector<std::vector<float>> embeddings = db.get_embeddings();
+	float high_score = -1.0f;
+	int idx = -1;
+	for (int i = 0; i < embeddings.size(); i++) {
+		float score = cosine_similarity(emb, embeddings[i]);
+		if (score > high_score) { high_score = score; idx = i; }
+	}
+	std::pair<float, int> p = {high_score, idx};
+	return p;
 }
 
 int main() {
@@ -179,7 +195,13 @@ int main() {
 		std::string prompt = body["prompt"].s();
 
 		std::vector<float> vec = get_embedding(prompt);
-
+		std::pair<float, int> most_sim = find_similar_response(db, vec);
+		std::pair<std::string, std::string> pr = db.get_entry(most_sim.second);
+		printf("most similar prompt: (%s)\n", pr.first.c_str());
+		printf("score: %f\n", most_sim.first);
+		printf("generated resp: (%s)\n", pr.second.c_str());
+		printf("\n-----------\n\n");
+		
 		std::string resp = run_llm(prompt);
 		db.savePrompt(prompt, resp, "recall", vec, lang);
 		crow::json::wvalue res;

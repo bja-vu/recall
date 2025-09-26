@@ -18,7 +18,8 @@ public:
 	std::vector<std::pair<std::string,std::string>> chatHistory();
 	std::vector<std::pair<std::string,std::string>> historySearch(std::optional<std::string> search, std::optional<int> limit);
 	std::string chatHistoryStr();
-	std::vector<std::vector<float>> get_embeddings();
+	std::vector<std::vector<float>> get_embeddings() const; // const at end makes function safe for const Database
+	std::pair<std::string,std::string> get_entry(int id);
 	void close();
 private:
 	sqlite3* db_;
