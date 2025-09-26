@@ -35,7 +35,7 @@ history='python3 main.py h'
 ## TODO
 - [x] Custom C++ server using Crow, llama.cpp
 - [x] SQLite integration
-- [ ] String embedding and cosine similarity using a model from hugging face
+- [x] String embedding and cosine similarity using a model from hugging face
 - [x] Chat mode capabilities
 - [ ] Docker caching properly to avoid rebuilding llama.cpp
 
