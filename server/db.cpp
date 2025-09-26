@@ -169,6 +169,30 @@ std::string Database::chatHistoryStr() {
 	return res;
 }
 
+std::vector<std::vector<float>> Database::get_embeddings() {
+	// returns all embeddings in a 2d list
+	// unopt - idk if it can be
+	std::vector<std::vector<float>> embeddings;
+	sqlite3_stmt* stmt = NULL;
+
+	const char* sql = "SELECT vec FROM prompts WHERE vec IS NOT NULL";
+	if (sqlite3_prepare_v2(db_, sql, -1, &stmt, NULL) != SQLITE_OK) {
+		printf("error: failed to prepare statement (vec. embeddings).\n");
+	}
+	while (sqlite3_step(stmt) == SQLITE_ROW) {
+		const void* blob = sqlite_column_blob(stmt, 0);
+		int bytes = sqlite3_column_bytes(stmt, 0);
+
+		if (blob && bytes > 0) {
+			int n = bytes / sizeof(float);
+			std::vector<float> vec(n);
+			std::memcpy(vec.data(), blob, bytes);
+			embeddings.push_back(vec);
+		}
+	}
+	sqlite3_finalize(stmt);
+	return embeddings;
+
 void Database::close() {
 	if (db_) {
 		sqlite3_close(db_);
