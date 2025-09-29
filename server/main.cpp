@@ -6,19 +6,20 @@
 #include <curl/curl.h>
 
 const char* mp = std::getenv("MODEL_PATH");
-const std::string model_path = mp ? std::string(mp) : "/app/models/capybarahermes-2.5-mistral-7b.Q4_K_M.gguf";
+const std::string model_path = mp ? std::string(mp) : "/app/models/llama-2-7b-chat.Q4_K_M.gguf";
 const int ngl = 99;
 const int n_predict = 256; //128
 
 const std::string prompt_tune =     
-	"### SYSTEM INSTRUCTIONS\n"
+	//"### SYSTEM INSTRUCTIONS\n"
+	"You are a helpful, concise assistant.\n"
 	"Always answer in two sentences or under 50 words. No extra explanation. No notes.\n"
 	"Assume the user understands the general topic and needs a quick reminder. Freely use slang and jargon where necessary. ALWAYS answer the question.\n"
 	"If the question refers to something that does not exist or is incorrect, say so. Do not answer untruthfully.\n"
 	"If the question is programming related, be pragmatic with your answers. Opt for code instead of descriptions.\n"
 	"Reply using markdown syntax only. Use one asterisk (*text*) for italics, two asterisks (**text**) for bold, and backticks (`text`) for inline code.\n"
-	"Infer missing context from previous messages. Never ask for clarification.\n"
-	"### END SYSTEM INSTRUCTIONS\n";
+	"Infer missing context from previous messages. Never ask for clarification.\n";
+	//"### END SYSTEM INSTRUCTIONS\n";
 
 llama_model* model;
 llama_context* ctx;
@@ -26,7 +27,6 @@ const llama_vocab* vocab;
 llama_sampler* smpl;
 
 int init_model() {
-	// GPU "main" model init
 	ggml_backend_load_all();
 	llama_model_params model_params = llama_model_default_params();
 	model_params.n_gpu_layers = ngl;
@@ -64,8 +64,22 @@ int init_model() {
 	return 0;
 }
 
+void reset_ctx() {
+	if (ctx != NULL) {
+		llama_free(ctx);
+	}
+	llama_context_params ctx_params = llama_context_default_params();
+	ctx_params.n_ctx = 4096; // 2048
+	ctx_params.n_batch = 1024; // 512
+	ctx = llama_init_from_model(model, ctx_params);
+
+	if (ctx == NULL) {
+		printf("error: failed to reset context.\n");
+	}
+}
+
 std::string run_llm(const std::string& prompt) {
-	std::string final_prompt = "<|system|>\n" + prompt_tune + "\n<|user|>\n" + prompt + "\n<|assistant|>/n";
+	std::string final_prompt = "[INST] <<SYS>>\n" + prompt_tune + "<</SYS>>\n" + prompt + " [/INST]";
 	int n_prompt = -llama_tokenize(vocab, final_prompt.c_str(), final_prompt.size(), NULL, 0, true, true);
 	std::vector<llama_token> prompt_tokens(n_prompt);
 
@@ -92,6 +106,11 @@ std::string run_llm(const std::string& prompt) {
 	    batch = llama_batch_get_one(&new_token_id, 1);
 	}
 
+	// clear kv cache to avoid running out of memory slots
+	//llama_kv_cache_clear(ctx); // OUTDATED
+	//llama_kv_cache_seq_rm(ctx, -1, 0, -1);
+	llama_sampler_reset(smpl);
+	reset_ctx();
 	return output;
 }
 
@@ -199,7 +218,7 @@ int main() {
 		std::pair<std::string, std::string> pr = db.get_entry(most_sim.second);
 		printf("most similar prompt: (%s)\n", pr.first.c_str());
 		printf("score: %f\n", most_sim.first);
-		printf("generated resp: (%s)\n", pr.second.c_str());
+		//printf("generated resp: (%s)\n", pr.second.c_str());
 		printf("\n-----------\n\n");
 		
 		std::string resp = run_llm(prompt);
@@ -218,6 +237,7 @@ int main() {
 		std::vector<float> vec = get_embedding(userPrompt);
 
 		std::string prompt = db.chatHistoryStr() + userPrompt;
+		printf("\n---FULL PROMPT SENT TO LLM---\n%s\n---END PROMPT---\n\n", prompt.c_str());
 		std::string resp = run_llm(prompt);
 		db.savePrompt(userPrompt, resp, "chat", vec, lang);
 		crow::json::wvalue res;
