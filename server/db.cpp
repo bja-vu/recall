@@ -195,18 +195,18 @@ std::vector<std::vector<float>> Database::get_embeddings() const {
 	return embeddings;
 }
 
-std::pair<std::string, std::string> Database::get_entry(int id) {
+std::pair<std::string, std::string> Database::get_entry(int idx) {
 	std::string prompt;
 	std::string resp;
 	sqlite3_stmt* stmt = NULL;
 
-	const char* sql = "SELECT prompt, response FROM prompts WHERE id = ?";
+	const char* sql = "SELECT prompt, response FROM prompts LIMIT 1 OFFSET ?";
 
 	if (sqlite3_prepare_v2(db_, sql, -1, &stmt, NULL) != SQLITE_OK) {
 		printf("error: failed to prepare statement (entry retrieval.\n");
 	}
 
-	if (sqlite3_bind_int(stmt, 1, id) != SQLITE_OK) {
+	if (sqlite3_bind_int(stmt, 1, idx) != SQLITE_OK) {
 		printf("error: failed to bind id for entry retrieval.\n");
 		sqlite3_finalize(stmt);
 	}

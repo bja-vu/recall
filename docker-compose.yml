@@ -4,9 +4,8 @@ services:
   cpp-server:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.server
       args:
-        BUILD_TARGET: server
         ENABLE_CUDA: ${ENABLE_CUDA}
     command: ./recall_server
     ports:
@@ -23,13 +22,11 @@ services:
   embed-service:
     build:
       context: .
-      dockerfile: Dockerfile
-      args:
-        BUILD_TARGET: test
-        ENABLE_CUDA: ${ENABLE_CUDA}
+      dockerfile: Dockerfile.embed
     command: uvicorn embed:app --host 0.0.0.0 --port 5001
     ports:
       - "5001:5001"
     volumes:
       - ./models:/app/models
       - ./data:/app/data
+

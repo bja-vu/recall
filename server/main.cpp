@@ -1,4 +1,4 @@
-#include "db.h"
+include "db.h"
 #include "crow.h"
 #include "llama.h"
 #include <iostream>
@@ -65,7 +65,7 @@ int init_model() {
 }
 
 std::string run_llm(const std::string& prompt) {
-	std::string final_prompt = prompt_tune + "\nUser: " + prompt + "\nAssistant: ";
+	std::string final_prompt = "<|system|>\n"prompt_tune + "\n<|user|>\n" + prompt + "\n<|assistant|>/n";
 	int n_prompt = -llama_tokenize(vocab, final_prompt.c_str(), final_prompt.size(), NULL, 0, true, true);
 	std::vector<llama_token> prompt_tokens(n_prompt);
 
