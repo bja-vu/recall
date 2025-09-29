@@ -6,18 +6,18 @@
 #include <curl/curl.h>
 
 const char* mp = std::getenv("MODEL_PATH");
-const std::string model_path = mp ? std::string(mp) : "/app/models/llama-2-7b-chat.Q4_K_M.gguf";
+const std::string model_path = mp ? std::string(mp) : "/app/models/Mistral-Nemo-Instruct-2407-Q4_K_M.gguf";
 const int ngl = 99;
 const int n_predict = 256; //128
 
 const std::string prompt_tune =     
 	//"### SYSTEM INSTRUCTIONS\n"
-	"You are a helpful, concise assistant.\n"
-	"Always answer in two sentences or under 50 words. No extra explanation. No notes.\n"
+	"You are a concise assistant.\n"
+	"Always answer in two sentences or under 50 words. \n"
 	"Assume the user understands the general topic and needs a quick reminder. Freely use slang and jargon where necessary. ALWAYS answer the question.\n"
-	"If the question refers to something that does not exist or is incorrect, say so. Do not answer untruthfully.\n"
-	"If the question is programming related, be pragmatic with your answers. Opt for code instead of descriptions.\n"
-	"Reply using markdown syntax only. Use one asterisk (*text*) for italics, two asterisks (**text**) for bold, and backticks (`text`) for inline code.\n"
+	"If something doesn't exist or is wrong, say so briefly.\n"
+	"For programming questions, show code instead of explanations.\n"
+	"Use markdown: *italics*, **bold**, `code`, ```code blocks```.\n"
 	"Infer missing context from previous messages. Never ask for clarification.\n";
 	//"### END SYSTEM INSTRUCTIONS\n";
 
