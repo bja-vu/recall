@@ -25,15 +25,6 @@ def parse_input(args):
 
     prompt_input = args[2:]
     prompt = " ".join(prompt_input)
-    if len(prompt_input) < 3:
-        print("was your prompt input correct?")
-        confirm = input("enter y/n:")
-        while True:
-            confirm = input("enter y/n:")
-            if confirm.lower().strip() == 'y':
-                break
-            if confirm.lower().strip() == 'n':
-                exit()
 
     if mode == 'r':
         return prompt, "recall"
