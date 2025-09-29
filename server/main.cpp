@@ -236,7 +236,8 @@ int main() {
 
 		std::vector<float> vec = get_embedding(userPrompt);
 
-		std::string prompt = db.chatHistoryStr() + userPrompt;
+		std::string history = db.chatHistoryStr();
+		std::string prompt = history + "User: " + userPrompt + "\nAssistant: ";
 		printf("\n---FULL PROMPT SENT TO LLM---\n%s\n---END PROMPT---\n\n", prompt.c_str());
 		std::string resp = run_llm(prompt);
 		db.savePrompt(userPrompt, resp, "chat", vec, lang);
