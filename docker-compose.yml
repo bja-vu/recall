@@ -7,7 +7,7 @@ services:
       dockerfile: Dockerfile.server
       args:
         ENABLE_CUDA: ${ENABLE_CUDA}
-    command: ./recall_server
+    command: ./recall_server ${CTX_LIMIT}
     ports:
       - "8000:8000"
     volumes:

@@ -71,7 +71,7 @@ void Database::savePrompt(const std::string& prompt,
 	sqlite3_finalize(stmt);
 }
 
-std::vector<std::pair<std::string,std::string>> Database::chatHistory() {
+std::vector<std::pair<std::string,std::string>> Database::chatHistory(int limit) {
     std::vector<std::pair<std::string,std::string>> history;
     sqlite3_stmt* stmt = NULL;
 
@@ -87,12 +87,13 @@ std::vector<std::pair<std::string,std::string>> Database::chatHistory() {
     }
 
     // Step 2: Get all messages AFTER the last recall (or all if no recall)
-const char* messages_sql = "SELECT prompt, response, type FROM prompts WHERE id >= ? ORDER BY id LIMIT 10";
+const char* messages_sql = "SELECT prompt, response, type FROM prompts WHERE id >= ? ORDER BY id LIMIT ?";
 	if (sqlite3_prepare_v2(db_, messages_sql, -1, &stmt, NULL) != SQLITE_OK) {
 		printf("Error: failed to prepare messages query: %s\n", sqlite3_errmsg(db_));
 		return history;
 	}
 	sqlite3_bind_int(stmt, 1, last_recall_id);
+	sqlite3_bind_int(stmt, 2, limit);
 
 	while (sqlite3_step(stmt) == SQLITE_ROW) {
 		std::string prompt = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
@@ -147,8 +148,8 @@ std::vector<std::pair<std::string,std::string>> Database::historySearch(std::opt
 	return results;
 }
 
-std::string Database::chatHistoryStr() {
-	auto history = chatHistory();
+std::string Database::chatHistoryStr(int limit) {
+	auto history = chatHistory(limit);
 	std::string res;
 	    printf("\nCHAT HISTORY (from DB)\n");
 	for (const auto& [role, text] : history) {

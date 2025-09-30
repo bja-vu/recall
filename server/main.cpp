@@ -4,6 +4,7 @@
 #include <iostream>
 #include <vector>
 #include <curl/curl.h>
+#include <string>
 
 const char* mp = std::getenv("MODEL_PATH");
 const std::string model_path = mp ? std::string(mp) : "/app/models/Mistral-Nemo-Instruct-2407-Q4_K_M.gguf";
@@ -193,7 +194,13 @@ std::pair<float, int> find_similar_response(const Database& db, const std::vecto
 	return p;
 }
 
-int main() {
+int main(int argc, char* argv[]) {
+	int ctx_limit=10;
+	if (argc > 1) { //should always be
+	ctx_limit = std::stoi(argv[1]);
+	}
+	printf("%d\n\n\n",ctx_limit);
+
     	if (init_model() == 1) {
 		return 1;
 	}
@@ -204,8 +211,6 @@ int main() {
 		return "hello world";
 	});
 
-	//TODO: add embedding for prompts + language inference heuristic
-
 	CROW_ROUTE(app, "/recall").methods("POST"_method)([&db](const crow::request& req) {
 		std::string lang = "";
 
@@ -213,6 +218,7 @@ int main() {
 		if (!body) return crow::response(400, "invalid input");
 		std::string prompt = body["prompt"].s();
 
+		// encoding
 		std::vector<float> vec = get_embedding(prompt);
 		std::pair<float, int> most_sim = find_similar_response(db, vec);
 		std::pair<std::string, std::string> pr = db.get_entry(most_sim.second);
@@ -228,7 +234,7 @@ int main() {
 		return crow::response(res);
 	});
 
-	CROW_ROUTE(app, "/chat").methods("POST"_method)([&db](const crow::request& req) {
+	CROW_ROUTE(app, "/chat").methods("POST"_method)([&db, ctx_limit](const crow::request& req) {
 		std::string lang = "";
 		auto body = crow::json::load(req.body);
 		if (!body) return crow::response(400, "invalid input");
@@ -236,7 +242,7 @@ int main() {
 
 		std::vector<float> vec = get_embedding(userPrompt);
 
-		std::string history = db.chatHistoryStr();
+		std::string history = db.chatHistoryStr(ctx_limit);
 		std::string prompt = history + "User: " + userPrompt + "\nAssistant: ";
 		printf("\n---FULL PROMPT SENT TO LLM---\n%s\n---END PROMPT---\n\n", prompt.c_str());
 		std::string resp = run_llm(prompt);
@@ -250,9 +256,8 @@ int main() {
 		auto body = crow::json::load(req.body);
 		if (!body) return crow::response(400, "invalid input");
 		
-		auto rows = db.chatHistory();
+		auto rows = db.chatHistory(10); // take an arg in the future
 	});
 
 	app.port(8000).multithreaded().run();
-	
 }

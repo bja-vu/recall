@@ -4,6 +4,7 @@ CONTAINER = recall_container
 CUDA ?= OFF
 TARGET ?= server
 GPUS ?= all
+CTX ?= 10
 
 build:
 	docker build \
@@ -19,10 +20,10 @@ run:
 	--rm -t $(IMAGE) ./recall_$(TARGET)
 
 compose-build:
-	TARGET=$(TARGET) ENABLE_CUDA=$(CUDA) docker compose build
+	TARGET=$(TARGET) ENABLE_CUDA=$(CUDA) CTX_LIMIT=$(CTX) docker compose build
 
 compose-up:
-	TARGET=$(TARGET) ENABLE_CUDA=$(CUDA) docker compose up
+	TARGET=$(TARGET) ENABLE_CUDA=$(CUDA) CTX_LIMIT=$(CTX) docker compose up
 
 compose-down:
 	docker compose down
