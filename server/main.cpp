@@ -125,7 +125,10 @@ static size_t cb(void* data, size_t size, size_t nmemb, void* clientp) {
 
 std::vector<float> get_embedding(std::string text) {
 	CURL* curl = curl_easy_init();
-	if (!curl) { printf("error: curl init failed.\n"); }
+	if (!curl) { 
+		printf("error: curl init failed.\n"); 
+		return std::vector<float>();
+	}
 
 	std::string response;
 	std::string json_body = "{\"prompt\":\"" + text + "\"}";
@@ -142,11 +145,13 @@ std::vector<float> get_embedding(std::string text) {
 
 	if (res != CURLE_OK) {
 		printf("error: curl failed.\n");
+		return std::vector<float>();
 	}
 	auto start = response.find('[');
 	auto end = response.find(']');
 	if (start == std::string::npos || end == std::string::npos) {
 		printf("error: bad json.\n");
+		return std::vector<float>();
 	}
 
 	std::string arr = response.substr(start + 1, end - start - 1);
@@ -183,6 +188,7 @@ std::pair<float, int> find_similar_response(const Database& db, const std::vecto
 	// iterate through running cosine similarity on arg and each embedding
 	// store highest score and its associated index (which equates to the col index)
 	// return
+	if (emb.size() == 0) { return {0.0f, 0}; }
 	std::vector<std::vector<float>> embeddings = db.get_embeddings();
 	float high_score = -1.0f;
 	int idx = -1;
@@ -220,12 +226,19 @@ int main(int argc, char* argv[]) {
 
 		// encoding
 		std::vector<float> vec = get_embedding(prompt);
+		if (vec.empty()) {
+			printf("error: failed to generate embedding.\n");
+			// return crow::response(500, "failed to generate embedding");
+		}
+
 		std::pair<float, int> most_sim = find_similar_response(db, vec);
-		std::pair<std::string, std::string> pr = db.get_entry(most_sim.second);
-		printf("most similar prompt: (%s)\n", pr.first.c_str());
-		printf("score: %f\n", most_sim.first);
-		//printf("generated resp: (%s)\n", pr.second.c_str());
-		printf("\n-----------\n\n");
+		if (!(most_sim.first == 0.0f && most_sim.second == 0)) {
+			std::pair<std::string, std::string> pr = db.get_entry(most_sim.second);
+			printf("most similar prompt: (%s)\n", pr.first.c_str());
+			printf("score: %f\n", most_sim.first);
+			//printf("generated resp: (%s)\n", pr.second.c_str());
+			printf("\n-----------\n\n");
+		}
 		
 		std::string resp = run_llm(prompt);
 		db.savePrompt(prompt, resp, "recall", vec, lang);
@@ -241,6 +254,10 @@ int main(int argc, char* argv[]) {
 		std::string userPrompt = body["prompt"].s();
 
 		std::vector<float> vec = get_embedding(userPrompt);
+		if (vec.empty()) {
+			printf("error: failed to generate embedding.\n");
+			// return crow::response(500, "failed to generate embedding");
+		}
 
 		std::string history = db.chatHistoryStr(ctx_limit);
 		std::string prompt = history + "User: " + userPrompt + "\nAssistant: ";
