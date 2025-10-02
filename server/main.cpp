@@ -5,6 +5,7 @@
 #include <vector>
 #include <curl/curl.h>
 #include <string>
+#include <chrono>
 
 const char* mp = std::getenv("MODEL_PATH");
 const std::string model_path = mp ? std::string(mp) : "/app/models/Mistral-Nemo-Instruct-2407-Q4_K_M.gguf";
@@ -218,7 +219,9 @@ int main(int argc, char* argv[]) {
 	});
 
 	CROW_ROUTE(app, "/recall").methods("POST"_method)([&db](const crow::request& req) {
-		std::string lang = "";
+		std::string lang = ""; // TODO: ADD HEURISTIC
+
+		auto start_time = std::chrono::high_resolution_clock::now();
 
 		auto body = crow::json::load(req.body);
 		if (!body) return crow::response(400, "invalid input");
@@ -230,6 +233,7 @@ int main(int argc, char* argv[]) {
 			printf("error: failed to generate embedding.\n");
 			// return crow::response(500, "failed to generate embedding");
 		}
+		auto embed_time = std::chrono::high_resolution_clock::now();
 
 		std::pair<float, int> most_sim = find_similar_response(db, vec);
 		if (!(most_sim.first == 0.0f && most_sim.second == 0)) {
@@ -239,33 +243,74 @@ int main(int argc, char* argv[]) {
 			//printf("generated resp: (%s)\n", pr.second.c_str());
 			printf("\n-----------\n\n");
 		}
+		auto search_time = std::chrono::high_resolution_clock::now();
 		
 		std::string resp = run_llm(prompt);
+		
+		auto gen_time = std::chrono::high_resolution_clock::now();
+
 		db.savePrompt(prompt, resp, "recall", vec, lang);
 		crow::json::wvalue res;
 		res["text"] = resp.empty() ? "error: generation failed" : resp;
+
+		auto embed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(embed_time - start_time).count();
+		auto search_ms = std::chrono::duration_cast<std::chrono::milliseconds>(search_time - embed_time).count();
+		auto gen_ms = std::chrono::duration_cast<std::chrono::milliseconds>(gen_time - search_time).count();
+		auto total_ms = std::chrono::duration_cast<std::chrono::milliseconds>(gen_time - start_time).count();
+
+		res["timing"]["embed"] = embed_ms;
+		res["timing"]["search"] = search_ms;
+		res["timing"]["gen"] = gen_ms;
+		res["timing"]["total"] = total_ms;
+
+		printf("timing: embed=%ldms, search=%ldms, gen=%ldms, total=%ldms\n", embed_ms, search_ms, gen_ms, total_ms);
 		return crow::response(res);
 	});
 
 	CROW_ROUTE(app, "/chat").methods("POST"_method)([&db, ctx_limit](const crow::request& req) {
+		// variables used for memoisation, chat prompts aren't memoised
 		std::string lang = "";
+		std::vector<float> empty_vec;
+
+		auto start_time = std::chrono::high_resolution_clock::now();
+
 		auto body = crow::json::load(req.body);
 		if (!body) return crow::response(400, "invalid input");
 		std::string userPrompt = body["prompt"].s();
 
+		// TODO: not needed, just delete
+		/*
 		std::vector<float> vec = get_embedding(userPrompt);
 		if (vec.empty()) {
 			printf("error: failed to generate embedding.\n");
 			// return crow::response(500, "failed to generate embedding");
 		}
+		*/
 
 		std::string history = db.chatHistoryStr(ctx_limit);
+		
+		auto history_time = std::chrono::high_resolution_clock::now();
+
 		std::string prompt = history + "User: " + userPrompt + "\nAssistant: ";
 		printf("\n---FULL PROMPT SENT TO LLM---\n%s\n---END PROMPT---\n\n", prompt.c_str());
 		std::string resp = run_llm(prompt);
-		db.savePrompt(userPrompt, resp, "chat", vec, lang);
+
+		auto gen_time = std::chrono::high_resolution_clock::now();
+
+		db.savePrompt(userPrompt, resp, "chat", empty_vec, lang);
 		crow::json::wvalue res;
 		res["text"] = resp.empty() ? "error: generation failed" : resp;
+
+		auto history_ms = std::chrono::duration_cast<std::chrono::milliseconds>(history_time - start_time).count();
+		auto gen_ms = std::chrono::duration_cast<std::chrono::milliseconds>(gen_time - history_time).count();
+		auto total_ms = std::chrono::duration_cast<std::chrono::milliseconds>(gen_time - start_time).count();
+
+		res["timing"]["history"] = history_ms;
+		res["timing"]["gen"] = gen_ms;
+		res["timing"]["total"] = total_ms;
+
+		printf("timing: history=%ldms, gen=%ldms, total=%ldms\n", history_ms, gen_ms, total_ms);
+
 		return crow::response(res);
 	});
 
@@ -274,6 +319,7 @@ int main(int argc, char* argv[]) {
 		if (!body) return crow::response(400, "invalid input");
 		
 		auto rows = db.chatHistory(10); // take an arg in the future
+		return crow::response(505);
 	});
 
 	app.port(8000).multithreaded().run();
