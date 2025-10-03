@@ -115,15 +115,7 @@ const char* messages_sql =
 }
 
 
-std::vector<std::pair<std::string,std::string>> Database::historySearch(std::optional<std::string> search_opt, std::optional<int> limit_opt) {
-	std::string search = "%";
-	int limit = 10;
-	if (search_opt.has_value()) {
-		search = *search_opt;
-	}
-	if (limit_opt.has_value()) {
-		limit = *limit_opt;
-	}
+std::vector<std::pair<std::string,std::string>> Database::historySearch(std::string search, int limit) {
 
 	std::vector<std::pair<std::string,std::string>> results;
 	const char* sql = "SELECT prompt, response FROM prompts "

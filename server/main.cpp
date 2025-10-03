@@ -317,9 +317,30 @@ int main(int argc, char* argv[]) {
 	CROW_ROUTE(app, "/history").methods("POST"_method)([&db](const crow::request& req) {
 		auto body = crow::json::load(req.body);
 		if (!body) return crow::response(400, "invalid input");
+
+		std::string search;
+		int limit;
 		
-		auto rows = db.chatHistory(10); // take an arg in the future
-		return crow::response(505);
+		if (body.has("search")) {
+			std::cout << "search" << search << std::endl;
+			search = body["search"].s();
+		}
+		if (body.has("limit")) {
+			std::cout << "limit: " << limit << std::endl;
+			limit = body["limit"].i();
+		}
+		
+		auto rows = db.historySearch(search, limit);
+		// convert vec<pair<str,str>> to json list
+		crow::json::wvalue res = crow::json::wvalue::list(rows.size());
+		for (size_t i = 0; i < rows.size(); i++) {
+			auto& e = rows[i];
+			crow::json::wvalue entry;
+			entry["prompt"] = e.first;
+			entry["response"] = e.second;
+			res[i] = std::move(entry); // wvalue needs move
+		}
+		return crow::response(res);
 	});
 
 	app.port(8000).multithreaded().run();

@@ -14,11 +14,18 @@ def parse_input(args):
 
     mode = args[1]
     if mode == 'h':
-        if len(args) > 2:
-            search = " ".join(args[2:])
-        else:
-            search = None
-        return search, "history"
+        limit = 10
+        search = "%"
+
+        if (len(args) >= 3):
+            if args[2].isdigit():
+                limit = int(args[2])
+                search = ("%" + (" ".join(args[3:])) + "%") if len(args)  > 3 else "%"
+            else:
+                search = " ".join(args[2:])
+        print(search)
+        return (search,limit), "history"
+
 
     if len(args) < 3:
         raise ValueError("No prompt was entered.\n")
@@ -39,9 +46,13 @@ def main():
     console = Console()
     prompt, prompt_type = parse_input(sys.argv)
     if prompt_type == "history":
-        payload = {"search": prompt}
+        payload = {"search": prompt[0], "limit": prompt[1]}
         req = requests.post(f"{url}/history", json=payload)
-        # return last 10 prompt/response pairs and print
+        resp = req.json()
+        for row in resp:
+            print("prompt: ", row["prompt"])
+            print("response: ", row["response"])
+            print("\n-----\n-----\n")
         return
 
     payload = {"prompt": prompt}
