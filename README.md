@@ -37,9 +37,10 @@ history='python3 main.py h'
 - [x] SQLite integration
 - [x] String embedding and cosine similarity using a model from hugging face
 - [x] Chat mode capabilities
-- [ ] Docker caching properly to avoid rebuilding llama.cpp
+- [x] Docker caching properly to avoid rebuilding llama.cpp
 
 - [ ] Inbuilt summarisation of last n messages when context size reaches limit
 
 - [ ] Contextual inference and specialised model/prompt pairs for certain tasks
     - e.g. different models and prompt tunes for conceptual prompts vs programming
+- [ ] Remove safe/unsafe langs. for programming context its not necessary.
