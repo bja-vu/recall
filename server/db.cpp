@@ -1,4 +1,5 @@
 #include "db.h"
+#include <cstddef>
 #include <iostream>
 #include <stdexcept>
 #include <cstring>
@@ -158,44 +159,41 @@ std::string Database::chatHistoryStr(int limit) {
 	}
 	return res;
 }
-
-std::vector<std::vector<float>> Database::get_embeddings() const {
-	// returns all embeddings in a 2d list
-	// unopt - idk if it can be
-	std::vector<std::vector<float>> embeddings;
+std::vector<std::pair<int, std::vector<float>>> Database::get_embeddings() const {
+	std::vector<std::pair<int, std::vector<float>>> embeddings;
 	sqlite3_stmt* stmt = NULL;
-
-	const char* sql = "SELECT vec FROM prompts WHERE vec IS NOT NULL";
+	const char* sql = "SELECT id, vec FROM prompts WHERE vec IS NOT NULL";
 	if (sqlite3_prepare_v2(db_, sql, -1, &stmt, NULL) != SQLITE_OK) {
 		printf("error: failed to prepare statement (vec. embeddings).\n");
+		return embeddings;
 	}
 	while (sqlite3_step(stmt) == SQLITE_ROW) {
-		const void* blob = sqlite3_column_blob(stmt, 0);
-		int bytes = sqlite3_column_bytes(stmt, 0);
-
+		int id = sqlite3_column_int(stmt, 0);
+		const void* blob = sqlite3_column_blob(stmt, 1);
+		int bytes = sqlite3_column_bytes(stmt, 1);
 		if (blob && bytes > 0) {
 			int n = bytes / sizeof(float);
 			std::vector<float> vec(n);
 			std::memcpy(vec.data(), blob, bytes);
-			embeddings.push_back(vec);
+			embeddings.push_back({id, vec});
 		}
 	}
 	sqlite3_finalize(stmt);
 	return embeddings;
 }
 
-std::pair<std::string, std::string> Database::get_entry(int idx) {
+std::pair<std::string, std::string> Database::get_entry(int id) {
 	std::string prompt;
 	std::string resp;
 	sqlite3_stmt* stmt = NULL;
 
-	const char* sql = "SELECT prompt, response FROM prompts LIMIT 1 OFFSET ?";
+	const char* sql = "SELECT prompt, response FROM prompts WHERE id = ?";
 
 	if (sqlite3_prepare_v2(db_, sql, -1, &stmt, NULL) != SQLITE_OK) {
-		printf("error: failed to prepare statement (entry retrieval.\n");
+		printf("error: failed to prepare statement (entry retrieval).\n");
 	}
 
-	if (sqlite3_bind_int(stmt, 1, idx) != SQLITE_OK) {
+	if (sqlite3_bind_int(stmt, 1, id) != SQLITE_OK) {
 		printf("error: failed to bind id for entry retrieval.\n");
 		sqlite3_finalize(stmt);
 	}
@@ -205,6 +203,33 @@ std::pair<std::string, std::string> Database::get_entry(int idx) {
 	}
 	sqlite3_finalize(stmt);
 	return {prompt, resp};
+}
+
+std::optional<std::string> Database::get_lang_from_id(int id) const {
+	// used for lang inference checks
+	sqlite3_stmt* stmt = NULL;
+
+	const char* sql = "SELECT lang FROM prompts WHERE id = ?";
+	if (sqlite3_prepare_v2(db_, sql, -1, &stmt, NULL) != SQLITE_OK) {
+		printf("error: failed to prepare statement (lang retrieval).\n");
+	}
+
+	if (sqlite3_bind_int(stmt, 1, id) != SQLITE_OK) {
+		printf("error: failed to bind id for lang retrieval.\n");
+		sqlite3_finalize(stmt);
+	}
+	if (sqlite3_step(stmt) == SQLITE_ROW) {
+		if (sqlite3_column_type(stmt,0) == SQLITE_NULL) {
+			printf("no lang associated with id %d.\n", id);
+		} else {
+			const char* val = reinterpret_cast<const char*>(sqlite3_column_text(stmt,0));
+			std::string result(val);
+			sqlite3_finalize(stmt);
+			return std::make_optional(std::string(result));
+		}
+	}
+	sqlite3_finalize(stmt);
+	return std::nullopt;
 }
 
 void Database::close() {

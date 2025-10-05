@@ -1,4 +1,5 @@
 #include "db.h"
+#include "lang.h"
 #include "crow.h"
 #include "llama.h"
 #include <iostream>
@@ -11,6 +12,8 @@ const char* mp = std::getenv("MODEL_PATH");
 const std::string model_path = mp ? std::string(mp) : "/app/models/Mistral-Nemo-Instruct-2407-Q4_K_M.gguf";
 const int ngl = 99;
 const int n_predict = 256; //128
+
+const float COSINE_THRESHOLD = 0.800f;
 
 const std::string prompt_tune =     
 	//"### SYSTEM INSTRUCTIONS\n"
@@ -184,21 +187,24 @@ float cosine_similarity(const std::vector<float>& a, const std::vector<float>& b
 	return dot / (std::sqrt(n_a) * std::sqrt(n_b));
 }
 
-std::pair<float, int> find_similar_response(const Database& db, const std::vector<float>& emb) {
-	// extract embeddings column
-	// iterate through running cosine similarity on arg and each embedding
-	// store highest score and its associated index (which equates to the col index)
-	// return
-	if (emb.size() == 0) { return {0.0f, 0}; }
-	std::vector<std::vector<float>> embeddings = db.get_embeddings();
+std::pair<float, int> find_similar_response(const Database& db, const std::vector<float>& emb, std::string lang) {
+	// changed to account for new embeddings method return sig
+	// and fixed to actually return a proper index
+	if (emb.size() == 0) { return {0.0f, -1}; }
+	auto embeddings = db.get_embeddings();
 	float high_score = -1.0f;
 	int idx = -1;
-	for (int i = 0; i < embeddings.size(); i++) {
-		float score = cosine_similarity(emb, embeddings[i]);
-		if (score > high_score) { high_score = score; idx = i; }
+	for (const auto& [id, vec] : embeddings) {
+		float score = cosine_similarity(emb, vec);
+		const auto& other_lang_opt = db.get_lang_from_id(id);
+		std::string other_lang = other_lang_opt.has_value() ? other_lang_opt.value() : "";
+		    printf("DEBUG: id=%d, score=%f, lang='%s', other_lang='%s'\n", id, score, lang.c_str(), other_lang.c_str());
+		if (score > high_score && lang == other_lang) {
+			high_score = score;
+			idx = id;
+		}
 	}
-	std::pair<float, int> p = {high_score, idx};
-	return p;
+	return {high_score, idx};
 }
 
 int main(int argc, char* argv[]) {
@@ -219,13 +225,15 @@ int main(int argc, char* argv[]) {
 	});
 
 	CROW_ROUTE(app, "/recall").methods("POST"_method)([&db](const crow::request& req) {
-		std::string lang = ""; // TODO: ADD HEURISTIC
-
 		auto start_time = std::chrono::high_resolution_clock::now();
 
 		auto body = crow::json::load(req.body);
 		if (!body) return crow::response(400, "invalid input");
 		std::string prompt = body["prompt"].s();
+
+		auto lang_opt = detectLang(prompt);
+		std::string lang = lang_opt.has_value() ? lang_opt.value() : "";
+		printf("LANG = %s.\n", lang.c_str());
 
 		// encoding
 		std::vector<float> vec = get_embedding(prompt);
@@ -235,17 +243,17 @@ int main(int argc, char* argv[]) {
 		}
 		auto embed_time = std::chrono::high_resolution_clock::now();
 
-		std::pair<float, int> most_sim = find_similar_response(db, vec);
-		if (!(most_sim.first == 0.0f && most_sim.second == 0)) {
-			std::pair<std::string, std::string> pr = db.get_entry(most_sim.second);
-			printf("most similar prompt: (%s)\n", pr.first.c_str());
-			printf("score: %f\n", most_sim.first);
-			//printf("generated resp: (%s)\n", pr.second.c_str());
-			printf("\n-----------\n\n");
-		}
+		std::pair<float, int> most_sim = find_similar_response(db, vec, lang);
+
 		auto search_time = std::chrono::high_resolution_clock::now();
-		
-		std::string resp = run_llm(prompt);
+		std::string resp;
+		if (most_sim.first > COSINE_THRESHOLD && most_sim.second != -1) {
+			std::pair<std::string, std::string> pr = db.get_entry(most_sim.second);
+			resp = pr.second;
+			printf("REUSED RESPONSE.\n");
+		} else {
+			resp = run_llm(prompt);
+		}
 		
 		auto gen_time = std::chrono::high_resolution_clock::now();
 

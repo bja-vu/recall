@@ -33,7 +33,7 @@ RUN g++ -std=c++17 -O3 \
         -I/usr/local/include \
         -Iexternal/Crow/include \
         -Iexternal/asio/asio/include \
-        server/main.cpp server/db.cpp \
+        server/main.cpp server/db.cpp server/lang.cpp \
         -L/usr/local/lib \
         -lllama -lggml \
         -lssl -lcrypto -lpthread -lsqlite3 -lcurl \
