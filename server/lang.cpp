@@ -3,35 +3,27 @@
 
 const std::vector<std::string> prefixWords = {"on", "in", "with", "using"};
 
-// maps for safe and unsafe alias' of languages
-// unsafe ones require a prefix word to assume a coding context
-
-const std::unordered_map<std::string, std::vector<std::string>> safeLangs = {
-	{"python", {"py", "py3", "python 3", "python3"}},
+// I used to have "safe" and unsafe langs to avoid tagging non-coding related prompts with languages
+// but I am focusing on coding now, it is safe to assume all prompts can be associated with a programming language if the alias is contained
+const std::unordered_map<std::string, std::vector<std::string>> langAliases = {
+	{"python", {"py", "py3", "python 3", "python3", "python"}},
 	{"c", {"c", "cpp", "c++"}},
 	{"java", {"java"}},
 	{"go", {"go", "golang"}},
-	{"rust", {"rs"}}
+	{"rust", {"rust", "rs"}}
 };
 
-extern const std::unordered_map<std::string, std::vector<std::string>> unsafeLangs = {
-	{"python", {"python"}},
-	{"go", {"go"}},
-	{"ruby", {"ruby"}},
-	{"rust", {"rust"}}
-};
-
-std::optional<std::pair<bool, std::string>> whichLangAlias(std::string word) {
+std::optional<std::string> whichLangAlias(std::string word) {
     printf("Checking word: '%s'\n", word.c_str());
-    printf("safeLangs size: %zu\n", safeLangs.size());
-    for (const auto& [k,v] : safeLangs) {
+    printf("langAliases size: %zu\n", langAliases.size());
+    for (const auto& [k,v] : langAliases) {
         printf("  Lang '%s' has %zu aliases: ", k.c_str(), v.size());
         for (const auto& alias : v) {
             printf("'%s' ", alias.c_str());
         }
         printf("\n");
         if (std::find(v.begin(), v.end(), word) != v.end()) {
-            return std::make_optional(std::make_pair(true, k));
+            return std::make_optional( k);
         }
     }
     return std::nullopt;
@@ -47,19 +39,12 @@ std::optional<std::string> detectLang(std::string prompt) {
 
 	std::string first_alias;
 
-	// check for safelang in first word
+	// check for alias in first word
 	const auto& first_check = whichLangAlias(words[0]);
-	if (first_check.has_value() && first_check.value().first) {
-		first_alias = first_check.value().second;
+	if (first_check.has_value()) {
+		first_alias = first_check.value();
 	}
 
-	if (words.size() == 1) {
-		const auto& res = whichLangAlias(words[0]);
-		if (res.has_value()) {
-			return res.value().second;
-		}
-		return std::nullopt;
-	}
 	printf("DEBUG: prompt='%s', words.size()=%zu\n", prompt.c_str(), words.size());
 	for (size_t i = 0; i < words.size(); i++) {
 	    printf("  words[%zu]='%s'\n", i, words[i].c_str());
@@ -68,13 +53,11 @@ std::optional<std::string> detectLang(std::string prompt) {
 	for (size_t i=1; i < words.size(); i++) {
 		const auto& res = whichLangAlias(words[i]);
 		if (res.has_value()) {
-			if (res.value().first) {
-				if (first_alias.empty()) {
-					first_alias = res.value().second;
-				}
-				if (std::find(prefixWords.begin(), prefixWords.end(), words[i-1]) != prefixWords.end()) {
-					return res.value().second;
-				}
+			if (first_alias.empty()) {
+				first_alias = res.value();
+			}
+			if (std::find(prefixWords.begin(), prefixWords.end(), words[i-1]) != prefixWords.end()) {
+				return res.value();
 			}
 		}
 	}

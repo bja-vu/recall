@@ -4,3 +4,4 @@ models/
 .vscode/
 data/
 build/
+tests/results/*.csv
