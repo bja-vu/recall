@@ -1,5 +1,6 @@
 #include "lang.h"
 #include <sstream>
+#include <string>
 
 const std::vector<std::string> prefixWords = {"on", "in", "with", "using"};
 
@@ -14,19 +15,20 @@ const std::unordered_map<std::string, std::vector<std::string>> langAliases = {
 };
 
 std::optional<std::string> whichLangAlias(std::string word) {
-    printf("Checking word: '%s'\n", word.c_str());
-    printf("langAliases size: %zu\n", langAliases.size());
-    for (const auto& [k,v] : langAliases) {
-        printf("  Lang '%s' has %zu aliases: ", k.c_str(), v.size());
-        for (const auto& alias : v) {
-            printf("'%s' ", alias.c_str());
-        }
-        printf("\n");
-        if (std::find(v.begin(), v.end(), word) != v.end()) {
-            return std::make_optional( k);
-        }
-    }
-    return std::nullopt;
+	for (char& c : word) c = tolower(c); // convert each word passed to lowercase for the check
+	//printf("Checking word: '%s'\n", word.c_str());
+	//printf("langAliases size: %zu\n", langAliases.size());
+	for (const auto& [k,v] : langAliases) {
+		//printf("  Lang '%s' has %zu aliases: ", k.c_str(), v.size());
+		//for (const auto& alias : v) {
+			//printf("'%s' ", alias.c_str());
+		//}
+		//printf("\n");
+		if (std::find(v.begin(), v.end(), word) != v.end()) {
+			return std::make_optional( k);
+		}
+	}
+	return std::nullopt;
 }
 
 std::optional<std::string> detectLang(std::string prompt) {
@@ -45,10 +47,10 @@ std::optional<std::string> detectLang(std::string prompt) {
 		first_alias = first_check.value();
 	}
 
-	printf("DEBUG: prompt='%s', words.size()=%zu\n", prompt.c_str(), words.size());
-	for (size_t i = 0; i < words.size(); i++) {
-	    printf("  words[%zu]='%s'\n", i, words[i].c_str());
-	}
+	//printf("DEBUG: prompt='%s', words.size()=%zu\n", prompt.c_str(), words.size());
+	//for (size_t i = 0; i < words.size(); i++) {
+	    //printf("  words[%zu]='%s'\n", i, words[i].c_str());
+	//}
 
 	for (size_t i=1; i < words.size(); i++) {
 		const auto& res = whichLangAlias(words[i]);
