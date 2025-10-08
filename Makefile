@@ -1,7 +1,7 @@
 IMAGE = recall
 CONTAINER = recall_container
 
-CUDA ?= OFF
+CUDA ?= ON
 TARGET ?= server
 GPUS ?= all
 CTX ?= 10
@@ -27,3 +27,18 @@ compose-up:
 
 compose-down:
 	docker compose down
+
+cb: compose-build
+
+cu: compose-up
+
+test: clean-db test-memoization test-benchmarks
+
+clean-db:
+	sqlite3 data/memory.db "DELETE FROM prompts;"
+
+test-memoization:
+	python3 tests/memoise.py
+
+test-benchmarks:
+	python3 tests/benchmark.py
