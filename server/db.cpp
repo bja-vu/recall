@@ -90,7 +90,7 @@ std::vector<std::pair<std::string,std::string>> Database::chatHistory(int limit)
     // Step 2: get the last *limit* entries from the subsection last_recall-end
 const char* messages_sql = 
 		// returns the "last" n pairs from the section after the last recall
-		"SELECT prompt, response, type FROM (SELECT * FROM prompts WHERE id > ? ORDER BY id DESC LIMIT ?) ORDER BY id ASC";
+		"SELECT prompt, response, type FROM (SELECT * FROM prompts WHERE id >= ? ORDER BY id DESC LIMIT ?) ORDER BY id ASC";
 	if (sqlite3_prepare_v2(db_, messages_sql, -1, &stmt, NULL) != SQLITE_OK) {
 		printf("Error: failed to prepare messages query: %s\n", sqlite3_errmsg(db_));
 		return history;
