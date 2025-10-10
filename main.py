@@ -1,6 +1,7 @@
 import sys
 import requests
 import json
+import re
 from rich import print
 from rich.markdown import Markdown
 from rich.console import Console
@@ -58,7 +59,9 @@ def main():
     payload = {"prompt": prompt}
     req = requests.post(f"{url}/{prompt_type}", json=payload)
 
-    response = req.json()["text"]
+    response = req.json()["text"].strip()
+    response = re.sub(r'```(\w+)\s*', r'```\1\n', response) #adds a newline to codeblocks like ```python
+    response = re.sub(r'([^\n])```', r'\1\n```', response) #newline after closing
     console.print(Markdown(response))
 
 
