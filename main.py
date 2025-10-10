@@ -1,161 +1,69 @@
 import sys
+import requests
+import json
+import re
 from rich import print
 from rich.markdown import Markdown
 from rich.console import Console
-import subprocess
-import json
-import sqlite3
 
 from lang_utils import detect_lang
 
-# globals
-model = "capybarahermes-2.5-mistral-7b.Q4_K_M"
 
-prompt_tune = (
-       "Always answer in two sentences or under 50 words. No extra explanation. No notes.\n"
-    "Assume the user understands the general topic and needs a quick reminder. Freely use slang and jargon where necessary. ALWAYS answer the question.\n"
-    "If the question refers to something that does not exist or is incorrect, say so. Do not answer untruthfully.\n"
-    "If the question is programming related, be pragmatic with your answers. Opt for code instead of descriptions.\n"
-    "Reply using markdown syntax only. Use one asterisk (*text*) for italics, two asterisks (**text**) for bold, and backticks (`text`) for inline code.\n"
-    "Infer missing context from previous messages. Never ask for clarification.\n"
-)
-
-def init_db():
-    # initialises sqlite3 db, returns tuple
-    con = sqlite3.connect("data/memory.db")
-    cur = con.cursor()
-
-    cur.execute('''
-    CREATE TABLE IF NOT EXISTS prompts (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                prompt TEXT,
-                response TEXT,
-                type TEXT,
-                vec BLOB,
-                lang TEXT
-                )
-    ''')
-    return con,cur
-
-def parse_input(args) -> tuple[str | None, str]:
-    if len(args) < 2:
+def parse_input(args):
+    if (len(args) < 2):
         raise ValueError("Not enough args.\n")
-    
-    mode = args[1] # recall, chat, history
-    if mode == 'h': # history, optional search term
-        if len(args) >  2:
-            search = " ".join(args[2:])
-        else:
-            search = None
-        return search, "history"
+
+    mode = args[1]
+    if mode == 'h':
+        limit = 10
+        search = "%"
+
+        if (len(args) >= 3):
+            if args[2].isdigit():
+                limit = int(args[2])
+                search = ("%" + (" ".join(args[3:])) + "%") if len(args)  > 3 else "%"
+            else:
+                search = " ".join(args[2:])
+        print(search)
+        return (search,limit), "history"
+
 
     if len(args) < 3:
         raise ValueError("No prompt was entered.\n")
-    
+
     prompt_input = args[2:]
     prompt = " ".join(prompt_input)
-    if len(prompt_input) < 3:
-        print("was your prompt input correct?")
-        confirm = input("enter y/n:")
-        while True:
-            confirm = input("enter y/n:")
-            if confirm.lower().strip() == 'y':
-                break
-            if confirm.lower().strip() == 'n':
-                exit()
 
     if mode == 'r':
         return prompt, "recall"
-    elif mode == 'c':
+    if mode == 'c':
         return prompt, "chat"
 
-def chat_context(cur): # NOTE chat history could overload the models token limit
-    last_recall = cur.execute(
-        "SELECT prompt, response FROM prompts WHERE type='recall' ORDER BY id DESC LIMIT 1"
-    ).fetchone()
 
-    history = []
-    if last_recall:
-        history.append({"role": "assistant", "content": last_recall[1]})
+url = "http://0.0.0.0:8000"
 
-    last_recall_id = 0
-    if last_recall:
-        last_recall_id = cur.execute(
-            "SELECT id FROM prompts WHERE type='recall' ORDER BY id DESC LIMIT 1"
-        ).fetchone()[0]
-
-    cur.execute(
-        "SELECT prompt, response FROM prompts WHERE id > ? AND type='chat' ORDER BY id",
-        (last_recall_id,),
-    )
-    for prompt, response in cur.fetchall():
-        history.append({"role": "user", "content": prompt})
-        history.append({"role": "assistant", "content": response})
-
-    return history
-
-def chat_history(cur, term=None):
-    if term: # with term searches, you want many more
-        cur.execute('SELECT prompt, response FROM prompts WHERE prompt LIKE ? OR response LIKE ? ORDER BY id',(f"%{term}%", f"%{term}%"))
-    else: # with no search, just display last 10
-        cur.execute('SELECT prompt, response FROM prompts ORDER BY id DESC LIMIT 10' )
-    return cur.fetchall()
-
-def curl_llm(messages):
-    d_args = {
-        "model": model,
-        "messages": messages,
-        "max_tokens": 300,
-        "temperature": 0.2,
-        "top_p": 0.9
-        }
-    res = subprocess.run(
-            [
-                "curl",
-                "http://127.0.0.1:8080/v1/chat/completions",
-                "-H","Content-Type: application/json",
-                "-d", json.dumps(d_args)
-                ],
-                capture_output=True
-                )
-    # process output, return raw text
-    out = res.stdout.decode()
-    answer = json.loads(out)
-    return answer["choices"][0]["message"]["content"].strip()
-    
-def save_to_db(cur, prompt, raw, prompt_type, vec, lang):
-    if not prompt or not raw:
-        raise ValueError("Prompt or response is empty, exiting...")
-    cur.execute("INSERT INTO prompts (prompt, response, type, vec, lang) VALUES (?, ?, ?,?,?)",
-                (prompt, raw, prompt_type, vec, lang))
 
 def main():
     console = Console()
-    con, cur = init_db()
-
     prompt, prompt_type = parse_input(sys.argv)
     if prompt_type == "history":
-        rows =chat_history(cur,prompt)
-        for p, r in rows:
-            console.print(f"Q: ", Markdown(p), "\nA: ", Markdown(r))
-            console.rule()
+        payload = {"search": prompt[0], "limit": prompt[1]}
+        req = requests.post(f"{url}/history", json=payload)
+        resp = req.json()
+        for row in resp:
+            print("prompt: ", row["prompt"])
+            print("response: ", row["response"])
+            print("\n-----\n-----\n")
         return
-    history = chat_context(cur) if prompt_type == "chat" else []
 
-    vec = None # needs to be added here, or included as a module
+    payload = {"prompt": prompt}
+    req = requests.post(f"{url}/{prompt_type}", json=payload)
 
-    # lang will only be tagged on recalls
-    lang = detect_lang(prompt) if prompt_type == "recall" else None
+    response = req.json()["text"].strip()
+    response = re.sub(r'```(\w+)\s*', r'```\1\n', response) #adds a newline to codeblocks like ```python
+    response = re.sub(r'([^\n])```', r'\1\n```', response) #newline after closing
+    console.print(Markdown(response))
 
-    messages = [{"role": "user", "content": prompt_tune}] + history
-    messages.append({"role": "user", "content": prompt})
-
-    raw = curl_llm(messages)
-    console.print(Markdown(raw))
-    
-    save_to_db(cur, prompt, raw, prompt_type, vec, lang)
-    con.commit()
-    con.close()
 
 if __name__ == "__main__":
     main()

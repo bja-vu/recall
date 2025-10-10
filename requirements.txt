@@ -83,3 +83,4 @@ typing_extensions @ file:///croot/typing_extensions_1734714854207/work
 urllib3 @ file:///croot/urllib3_1750775463400/work
 wheel==0.45.1
 zstandard @ file:///croot/zstandard_1731356346222/work
+fastapi[standard]
