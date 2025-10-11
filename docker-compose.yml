@@ -1,24 +1,35 @@
-version: "3.9"
-
 services:
-  cpp-server:
+  cpp-server-cpu:
     build:
       context: .
       dockerfile: Dockerfile.server
       args:
-        ENABLE_CUDA: ${ENABLE_CUDA}
+        ENABLE_CUDA: "OFF"
     command: ./recall_server ${CTX_LIMIT}
     ports:
       - "8000:8000"
     volumes:
       - ./models:/app/models
       - ./data:/app/data
+    profiles: ["no-gpu"]
+  cpp-server-gpu:
+    build:
+      context: .
+      dockerfile: Dockerfile.server
+      args:
+        ENABLE_CUDA: "ON"
+    command: ./recall_server ${CTX_LIMIT}
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./models:/app/models
+      - ./data:/app/data
+    profiles: ["gpu"]
     deploy:
       resources:
         reservations:
           devices:
             - capabilities: [gpu]
-
   embed-service:
     build:
       context: .

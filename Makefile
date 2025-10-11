@@ -23,7 +23,11 @@ compose-build:
 	TARGET=$(TARGET) ENABLE_CUDA=$(CUDA) CTX_LIMIT=$(CTX) docker compose build
 
 compose-up:
-	TARGET=$(TARGET) ENABLE_CUDA=$(CUDA) CTX_LIMIT=$(CTX) docker compose up
+ifeq ($(CUDA),ON)
+	TARGET=$(TARGET) ENABLE_CUDA=ON CTX_LIMIT=$(CTX) docker compose --profile gpu up
+else
+	TARGET=$(TARGET) ENABLE_CUDA=OFF CTX_LIMIT=$(CTX) docker compose --profile no-gpu up
+endif
 
 compose-down:
 	docker compose down
